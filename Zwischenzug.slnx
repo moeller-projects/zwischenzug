@@ -1,0 +1,12 @@
+<Solution>
+  <Project Path="src/Zwischenzug.Core/Zwischenzug.Core.csproj" />
+  <Project Path="src/Zwischenzug.Engine/Zwischenzug.Engine.csproj" />
+  <Project Path="src/Zwischenzug.Uci/Zwischenzug.Uci.csproj" />
+  <Project Path="src/Zwischenzug.Lichess/Zwischenzug.Lichess.csproj" />
+  <Project Path="src/Zwischenzug.Cli/Zwischenzug.Cli.csproj" />
+  <Project Path="tests/Zwischenzug.Core.Tests/Zwischenzug.Core.Tests.csproj" />
+  <Project Path="tests/Zwischenzug.Engine.Tests/Zwischenzug.Engine.Tests.csproj" />
+  <Project Path="tests/Zwischenzug.Uci.Tests/Zwischenzug.Uci.Tests.csproj" />
+  <Project Path="tests/Zwischenzug.Lichess.Tests/Zwischenzug.Lichess.Tests.csproj" />
+  <Project Path="benchmarks/Zwischenzug.Benchmarks/Zwischenzug.Benchmarks.csproj" />
+</Solution>

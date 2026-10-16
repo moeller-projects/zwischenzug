@@ -1,0 +1,14 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet restore Zwischenzug.slnx
+      - run: dotnet build Zwischenzug.slnx -c Release --no-restore
+      - run: dotnet test --solution Zwischenzug.slnx -c Release --no-build
+      - run: dotnet run --project src/Zwischenzug.Cli -c Release --no-build -- bench 5
