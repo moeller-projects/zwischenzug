@@ -15,7 +15,7 @@ public sealed class SearchTests
         engine.NewGame(); engine.SetPosition(Fen.StartPosition);
         var second = await engine.SearchAsync(new SearchLimits { Depth = 4 });
         Assert.AreEqual(first.BestMove, second.BestMove); Assert.AreEqual(first.Nodes, second.Nodes);
-        Assert.AreEqual(first.BestMove, Move.Parse(new Position(),first.BestMove.ToString()));
+        Assert.AreEqual(first.BestMove, Move.Parse(new Position(), first.BestMove.ToString()));
         Assert.IsGreaterThan(0L, first.Statistics.QuiescenceNodes);
         Assert.IsGreaterThan(0L, first.Statistics.KillerUpdates);
         Assert.IsGreaterThan(0L, first.Statistics.HistoryUpdates);
@@ -25,32 +25,32 @@ public sealed class SearchTests
     [TestMethod]
     [DataRow("7k/6Q1/5K2/8/8/8/8/8 b - - 0 1", -30000)]
     [DataRow("7k/5K2/6Q1/8/8/8/8/8 b - - 0 1", 0)]
-    public async Task TerminalRootsReturnNullMove(string fen,int score)
+    public async Task TerminalRootsReturnNullMove(string fen, int score)
     {
         var engine = new Engine(); engine.SetPosition(fen);
-        var result = await engine.SearchAsync(new SearchLimits { Depth=4 });
-        Assert.AreEqual(default, result.BestMove); Assert.AreEqual(score,result.Score);
+        var result = await engine.SearchAsync(new SearchLimits { Depth = 4 });
+        Assert.AreEqual(default, result.BestMove); Assert.AreEqual(score, result.Score);
     }
 
     [TestMethod]
     public async Task ImmediateCancellationStillCompletesFirstIteration()
     {
         var engine = new Engine(); using var cancel = new CancellationTokenSource(); cancel.Cancel();
-        var result = await engine.SearchAsync(new SearchLimits { Infinite=true },ct:cancel.Token);
-        Assert.AreEqual(1,result.Depth);
-        Assert.AreEqual(result.BestMove,Move.Parse(new Position(),result.BestMove.ToString()));
+        var result = await engine.SearchAsync(new SearchLimits { Infinite = true }, ct: cancel.Token);
+        Assert.AreEqual(1, result.Depth);
+        Assert.AreEqual(result.BestMove, Move.Parse(new Position(), result.BestMove.ToString()));
     }
 
     [TestMethod]
     public async Task TimeAndNodeLimitsStopSearch()
     {
-        foreach (var limits in new[] { new SearchLimits { MoveTime=80 }, new SearchLimits { WhiteTime=1000,BlackTime=1000 }, new SearchLimits { Nodes=2000 } })
+        foreach (var limits in new[] { new SearchLimits { MoveTime = 80 }, new SearchLimits { WhiteTime = 1000, BlackTime = 1000 }, new SearchLimits { Nodes = 2000 } })
         {
             var engine = new Engine(); var watch = Stopwatch.StartNew();
             var result = await engine.SearchAsync(limits);
-            Assert.IsLessThan(200L,watch.ElapsedMilliseconds);
-            Assert.AreEqual(result.BestMove,Move.Parse(new Position(),result.BestMove.ToString()));
-            if (limits.Nodes != long.MaxValue) Assert.IsLessThanOrEqualTo(limits.Nodes,result.Nodes);
+            Assert.IsLessThan(200L, watch.ElapsedMilliseconds);
+            Assert.AreEqual(result.BestMove, Move.Parse(new Position(), result.BestMove.ToString()));
+            if (limits.Nodes != long.MaxValue) Assert.IsLessThanOrEqualTo(limits.Nodes, result.Nodes);
         }
     }
 
@@ -58,9 +58,9 @@ public sealed class SearchTests
     public async Task HangingQueenIsResolvedByQuiescence()
     {
         var engine = new Engine(); engine.SetPosition("4k3/8/8/8/3q4/8/3R4/4K3 w - - 0 1");
-        var result = await engine.SearchAsync(new SearchLimits { Depth=1 });
-        Assert.AreEqual("d2d4",result.BestMove.ToString());
-        Assert.IsGreaterThan(0L,result.Statistics.QuiescenceNodes);
+        var result = await engine.SearchAsync(new SearchLimits { Depth = 1 });
+        Assert.AreEqual("d2d4", result.BestMove.ToString());
+        Assert.IsGreaterThan(0L, result.Statistics.QuiescenceNodes);
     }
 
     [TestMethod]
@@ -68,33 +68,33 @@ public sealed class SearchTests
     {
         var engine = new Engine();
         engine.SetPosition("7k/6Q1/5K2/8/8/8/8/8 b - - 100 1");
-        Assert.AreEqual(-30000,(await engine.SearchAsync(new SearchLimits { Depth=2 })).Score);
+        Assert.AreEqual(-30000, (await engine.SearchAsync(new SearchLimits { Depth = 2 })).Score);
         engine.SetPosition("4k3/8/8/8/8/8/8/4K3 w - - 100 1");
-        Assert.AreEqual(0,(await engine.SearchAsync(new SearchLimits { Depth=2 })).Score);
+        Assert.AreEqual(0, (await engine.SearchAsync(new SearchLimits { Depth = 2 })).Score);
     }
 
     [TestMethod]
     public async Task WarmTablePreservesLegalPrincipalVariation()
     {
         var engine = new Engine();
-        await engine.SearchAsync(new SearchLimits { Depth=4 });
-        var result = await engine.SearchAsync(new SearchLimits { Depth=4 });
-        Assert.IsGreaterThanOrEqualTo(result.Depth,result.Pv.Length);
+        await engine.SearchAsync(new SearchLimits { Depth = 4 });
+        var result = await engine.SearchAsync(new SearchLimits { Depth = 4 });
+        Assert.IsGreaterThanOrEqualTo(result.Depth, result.Pv.Length);
         var position = new Position();
-        foreach (var move in result.Pv) position.MakeMove(Move.Parse(position,move.ToString()));
+        foreach (var move in result.Pv) position.MakeMove(Move.Parse(position, move.ToString()));
     }
 
     [TestMethod]
     public async Task FiftyMoveContextDoesNotPoisonFreshPositionScores()
     {
         const string board = "7k/8/8/8/8/8/R7/4K3 w - - ";
-        var warm = new Engine(); warm.SetPosition(board+"98 1");
-        await warm.SearchAsync(new SearchLimits { Depth=4 });
-        warm.SetPosition(board+"0 1");
-        var actual = await warm.SearchAsync(new SearchLimits { Depth=4 });
-        var fresh = new Engine(); fresh.SetPosition(board+"0 1");
-        var expected = await fresh.SearchAsync(new SearchLimits { Depth=4 });
-        Assert.AreEqual(expected.Score,actual.Score);
+        var warm = new Engine(); warm.SetPosition(board + "98 1");
+        await warm.SearchAsync(new SearchLimits { Depth = 4 });
+        warm.SetPosition(board + "0 1");
+        var actual = await warm.SearchAsync(new SearchLimits { Depth = 4 });
+        var fresh = new Engine(); fresh.SetPosition(board + "0 1");
+        var expected = await fresh.SearchAsync(new SearchLimits { Depth = 4 });
+        Assert.AreEqual(expected.Score, actual.Score);
     }
 
     public static IEnumerable<object[]> Mates()
@@ -123,15 +123,15 @@ public sealed class SearchTests
             "4K3/5P2/2N1k3/8/4P3/3R4/6P1/8 w - - 0 1",
             "8/8/1Q3K2/3pN3/4kp2/8/8/8 w - - 0 1"
         ];
-        for (int i=0;i<positions.Length;i++) yield return [positions[i],i<8 ? 29999 : i<14 ? 29997 : 29995];
+        for (int i = 0; i < positions.Length; i++) yield return [positions[i], i < 8 ? 29999 : i < 14 ? 29997 : 29995];
     }
 
     [TestMethod, DynamicData(nameof(Mates))]
-    public async Task FindsForcedMateWithinThreeMoves(string fen,int expectedScore)
+    public async Task FindsForcedMateWithinThreeMoves(string fen, int expectedScore)
     {
         var engine = new Engine(); engine.SetPosition(fen);
-        var result = await engine.SearchAsync(new SearchLimits { Depth=6 });
-        Assert.AreEqual(expectedScore,result.Score,fen);
-        Assert.AreEqual(result.BestMove,Move.Parse(Fen.Parse(fen),result.BestMove.ToString()));
+        var result = await engine.SearchAsync(new SearchLimits { Depth = 6 });
+        Assert.AreEqual(expectedScore, result.Score, fen);
+        Assert.AreEqual(result.BestMove, Move.Parse(Fen.Parse(fen), result.BestMove.ToString()));
     }
 }

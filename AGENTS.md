@@ -18,4 +18,16 @@ dotnet build Zwischenzug.slnx -c Release --no-restore
 dotnet test --solution Zwischenzug.slnx -c Release --no-build
 dotnet run --project src/Zwischenzug.Cli -c Release --no-build -- perft 5
 dotnet run --project src/Zwischenzug.Cli -c Release --no-build -- bench 5
+dotnet run --project benchmarks/Zwischenzug.Benchmarks -c Release --no-build -- --job Short --filter '*'
 ```
+
+## Runtime invariants
+
+- `Engine` has one search owner. Cancel and await before position/hash mutations.
+- Never reuse TT scores across halfmove-clock contexts. Repetition keys remain clock-independent.
+- Game streams are authoritative. Reconcile a fresh snapshot after an ambiguous move POST; never blindly retry.
+- Challenge/game identity is exact; keep pending reservations keyed by challenge ID.
+- Benchmark depth-five signature: `BenchmarkSuite.ExpectedDefaultNodes`. Update code, regression assertion and README intentionally when search semantics change.
+- Exhaustive make/unmake restoration covers the deepest accepted perft trees, including incremental-key recomputation.
+- Search depth is bounded at 94 plies; Position history at 1,024. Threads is accepted but ignored.
+- Live Lichess/account upgrade, Native AOT publish and Docker verification require separate prerequisites/authorization. Never claim them from unit tests.

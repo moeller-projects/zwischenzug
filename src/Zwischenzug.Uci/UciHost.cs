@@ -5,7 +5,7 @@ using ChessEngine = Zwischenzug.Engine.Engine;
 namespace Zwischenzug.Uci;
 
 /// <summary>Serial command mutations, concurrent search, and atomic protocol output.</summary>
-public sealed class UciHost(TextReader input,TextWriter output,ChessEngine engine,ILogger<UciHost> logger) : ISearchObserver
+public sealed class UciHost(TextReader input, TextWriter output, ChessEngine engine, ILogger<UciHost> logger) : ISearchObserver
 {
     private readonly object _outputGate = new();
     private readonly UciOptions _options = new();
@@ -35,7 +35,7 @@ public sealed class UciHost(TextReader input,TextWriter output,ChessEngine engin
                         await StopAsync().ConfigureAwait(false); engine.NewGame(); break;
                     case UciCommand.Position position:
                         await StopAsync().ConfigureAwait(false);
-                        try { engine.SetPosition(position.Fen,position.Moves); }
+                        try { engine.SetPosition(position.Fen, position.Moves); }
                         catch (FormatException) { logger.LogDebug("Ignoring invalid UCI position"); }
                         break;
                     case UciCommand.SetOption option:
@@ -43,7 +43,7 @@ public sealed class UciHost(TextReader input,TextWriter output,ChessEngine engin
                     case UciCommand.Go go:
                         await StopAsync().ConfigureAwait(false);
                         _searchCancellation = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                        _searchTask = SearchAndReportAsync(go.Limits,_searchCancellation.Token);
+                        _searchTask = SearchAndReportAsync(go.Limits, _searchCancellation.Token);
                         break;
                 }
             }
@@ -58,7 +58,7 @@ public sealed class UciHost(TextReader input,TextWriter output,ChessEngine engin
 
     private async Task SetOptionAsync(UciCommand.SetOption option)
     {
-        if (!_options.TrySet(option.Name,option.Value)) return;
+        if (!_options.TrySet(option.Name, option.Value)) return;
         switch (option.Name.ToLowerInvariant())
         {
             case "hash":
@@ -69,22 +69,22 @@ public sealed class UciHost(TextReader input,TextWriter output,ChessEngine engin
         }
     }
 
-    private async Task SearchAndReportAsync(SearchLimits limits,CancellationToken ct)
+    private async Task SearchAndReportAsync(SearchLimits limits, CancellationToken ct)
     {
         try
         {
-            SearchResult result = await engine.SearchAsync(limits,this,ct).ConfigureAwait(false);
+            SearchResult result = await engine.SearchAsync(limits, this, ct).ConfigureAwait(false);
             // UCI infinite must not emit bestmove until stop, even after a forced mate is found.
             if (limits.Infinite && !ct.IsCancellationRequested)
             {
-                try { await Task.Delay(Timeout.InfiniteTimeSpan,ct).ConfigureAwait(false); }
+                try { await Task.Delay(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false); }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
             }
             Write(UciResponseFormatter.BestMove(result.BestMove));
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            logger.LogError(exception,"Search failed");
+            logger.LogError(exception, "Search failed");
             // Wake the pending input read and surface the original fault immediately.
             // Never fabricate a bestmove after an unexpected engine failure.
             _lifetimeCancellation?.Cancel();

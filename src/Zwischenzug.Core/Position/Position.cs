@@ -35,21 +35,10 @@ public sealed class Position
         public bool Null;
     }
 
-    public Position() => SetFromFen(Fen.StartPosition);
+    public Position() => Fen.Initialize(this,Fen.StartPosition);
 
-    internal Position(string fen) => SetFromFen(fen);
     internal Position(bool empty) { }
 
-    internal void SetFromFen(string fen)
-    {
-        var parsed = Fen.Parse(fen);
-        Array.Copy(parsed.Board, Board, 64);
-        Array.Copy(parsed.Pieces, Pieces, 13);
-        Array.Copy(parsed.Colors, Colors, 2);
-        Occupied = parsed.Occupied; SideToMove = parsed.SideToMove; Castling = parsed.Castling;
-        EnPassant = parsed.EnPassant; HalfmoveClock = parsed.HalfmoveClock; FullmoveNumber = parsed.FullmoveNumber;
-        Key = parsed.Key; Ply = 0; _historyLength = 1; _history[0] = Key; _realHistory[0] = true;
-    }
     internal void InitializeHistory() { Ply = 0; _historyLength = 1; _history[0] = Key; _realHistory[0] = true; }
 
     internal void PutPiece(int square, int piece)
@@ -86,11 +75,14 @@ public sealed class Position
         int flag = move.Flag;
         if (from == to) throw new ArgumentException("Invalid move.", nameof(move));
         Key ^= Zobrist.CastleValue(Castling); if (EnPassant >= 0 && Zobrist.HasEp(this)) Key ^= Zobrist.EpValue(EnPassant);
-        if (flag == 2) { // castle rook follows king
+        if (flag == 2)
+        { // castle rook follows king
             int rookFrom = to > from ? (from / 8) * 8 + 7 : (from / 8) * 8;
             int rookTo = to > from ? to - 1 : to + 1;
             MovePiece(from, to, moving); MovePiece(rookFrom, rookTo, Board[rookFrom]);
-        } else {
+        }
+        else
+        {
             if (flag == 3) u.CapturedSquare = SideToMove == White ? to - 8 : to + 8;
             u.Captured = Board[u.CapturedSquare];
             if (u.Captured != 0) RemovePiece(u.CapturedSquare, u.Captured);

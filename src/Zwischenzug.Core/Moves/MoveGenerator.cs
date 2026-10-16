@@ -27,8 +27,8 @@ public static class MoveGenerator
     private static ulong Pinned(Position p, int side, int king)
     {
         ulong result = 0;
-        ReadOnlySpan<int> df = [0,0,1,-1,1,-1,1,-1];
-        ReadOnlySpan<int> dr = [1,-1,0,0,1,1,-1,-1];
+        ReadOnlySpan<int> df = [0, 0, 1, -1, 1, -1, 1, -1];
+        ReadOnlySpan<int> dr = [1, -1, 0, 0, 1, 1, -1, -1];
         for (int direction = 0; direction < 8; direction++)
         {
             int candidate = -1, f = (king & 7) + df[direction], r = (king >> 3) + dr[direction];
@@ -63,21 +63,21 @@ public static class MoveGenerator
             bool promotion = (from >> 3) == (side == 0 ? 6 : 1);
             if ((uint)to < 64 && p.Board[to] == 0 && (!capturesOnly || promotion))
             {
-                if (promotion) for (int flag = 8; flag < 12; flag++) output[count++] = new(from,to,flag);
+                if (promotion) for (int flag = 8; flag < 12; flag++) output[count++] = new(from, to, flag);
                 else
                 {
-                    output[count++] = new(from,to);
-                    if ((from >> 3) == (side == 0 ? 1 : 6) && p.Board[to + step] == 0) output[count++] = new(from,to + step,1);
+                    output[count++] = new(from, to);
+                    if ((from >> 3) == (side == 0 ? 1 : 6) && p.Board[to + step] == 0) output[count++] = new(from, to + step, 1);
                 }
             }
-            ulong targets = Attacks.Pawn(from,side) & enemy & ~p.Pieces[6 + (side ^ 1) * 6];
+            ulong targets = Attacks.Pawn(from, side) & enemy & ~p.Pieces[6 + (side ^ 1) * 6];
             while (targets != 0)
             {
                 to = BitOperations.TrailingZeroCount(targets); targets &= targets - 1;
-                if (promotion) for (int flag = 12; flag < 16; flag++) output[count++] = new(from,to,flag);
-                else output[count++] = new(from,to,4);
+                if (promotion) for (int flag = 12; flag < 16; flag++) output[count++] = new(from, to, flag);
+                else output[count++] = new(from, to, 4);
             }
-            if (p.EnPassant >= 0 && (Attacks.Pawn(from,side) & (1UL << p.EnPassant)) != 0 && p.Board[p.EnPassant - step] == 1 + (side ^ 1) * 6) output[count++] = new(from,p.EnPassant,3);
+            if (p.EnPassant >= 0 && (Attacks.Pawn(from, side) & (1UL << p.EnPassant)) != 0 && p.Board[p.EnPassant - step] == 1 + (side ^ 1) * 6) output[count++] = new(from, p.EnPassant, 3);
         }
         for (int type = 2; type <= 6; type++)
         {
@@ -85,23 +85,23 @@ public static class MoveGenerator
             while (pieces != 0)
             {
                 int from = BitOperations.TrailingZeroCount(pieces); pieces &= pieces - 1;
-                ulong targets = type switch { 2 => Attacks.Knight(from), 3 => Attacks.Bishop(from,p.Occupied), 4 => Attacks.Rook(from,p.Occupied), 5 => Attacks.Queen(from,p.Occupied), _ => Attacks.King(from) };
+                ulong targets = type switch { 2 => Attacks.Knight(from), 3 => Attacks.Bishop(from, p.Occupied), 4 => Attacks.Rook(from, p.Occupied), 5 => Attacks.Queen(from, p.Occupied), _ => Attacks.King(from) };
                 targets &= ~own & ~p.Pieces[6 + (side ^ 1) * 6];
                 if (capturesOnly) targets &= enemy;
                 while (targets != 0)
                 {
                     int to = BitOperations.TrailingZeroCount(targets); targets &= targets - 1;
-                    output[count++] = new(from,to,p.Board[to] == 0 ? 0 : 4);
+                    output[count++] = new(from, to, p.Board[to] == 0 ? 0 : 4);
                 }
             }
         }
         if (!capturesOnly)
         {
             int k = side == 0 ? 4 : 60;
-            if (p.Board[k] == 6 + offset && !Attacks.IsSquareAttacked(p,k,side ^ 1))
+            if (p.Board[k] == 6 + offset && !Attacks.IsSquareAttacked(p, k, side ^ 1))
             {
-                if ((p.Castling & (1 << (side * 2))) != 0 && p.Board[k+3] == 4+offset && p.Board[k+1] == 0 && p.Board[k+2] == 0 && !Attacks.IsSquareAttacked(p,k+1,side ^ 1) && !Attacks.IsSquareAttacked(p,k+2,side ^ 1)) output[count++] = new(k,k+2,2);
-                if ((p.Castling & (2 << (side * 2))) != 0 && p.Board[k-4] == 4+offset && p.Board[k-1] == 0 && p.Board[k-2] == 0 && p.Board[k-3] == 0 && !Attacks.IsSquareAttacked(p,k-1,side ^ 1) && !Attacks.IsSquareAttacked(p,k-2,side ^ 1)) output[count++] = new(k,k-2,2);
+                if ((p.Castling & (1 << (side * 2))) != 0 && p.Board[k + 3] == 4 + offset && p.Board[k + 1] == 0 && p.Board[k + 2] == 0 && !Attacks.IsSquareAttacked(p, k + 1, side ^ 1) && !Attacks.IsSquareAttacked(p, k + 2, side ^ 1)) output[count++] = new(k, k + 2, 2);
+                if ((p.Castling & (2 << (side * 2))) != 0 && p.Board[k - 4] == 4 + offset && p.Board[k - 1] == 0 && p.Board[k - 2] == 0 && p.Board[k - 3] == 0 && !Attacks.IsSquareAttacked(p, k - 1, side ^ 1) && !Attacks.IsSquareAttacked(p, k - 2, side ^ 1)) output[count++] = new(k, k - 2, 2);
             }
         }
         return count;

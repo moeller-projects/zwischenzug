@@ -7,11 +7,20 @@ public static class Fen
     public const string StartPosition = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     public static Position Parse(string fen)
     {
+        var position = new Position(true);
+        Initialize(position,fen);
+        return position;
+    }
+
+    // Called only for a freshly allocated position, never over an existing game history.
+    internal static void Initialize(Position p,string fen)
+    {
         if (string.IsNullOrWhiteSpace(fen)) throw new FormatException("FEN is empty.");
         string[] f = fen.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (f.Length is < 4 or > 6) throw new FormatException("FEN requires four to six fields.");
-        var p = new Position(true); int rank = 7, file = 0;
-        foreach (char c in f[0]) {
+        int rank = 7, file = 0;
+        foreach (char c in f[0])
+        {
             if (c == '/') { if (file != 8 || --rank < 0) throw new FormatException("Invalid board layout."); file = 0; continue; }
             if (char.IsDigit(c)) { int n = c - '0'; if (n is < 1 or > 8 || file + n > 8) throw new FormatException("Invalid board layout."); file += n; continue; }
             int piece = Piece(c); if (piece == 0 || file >= 8) throw new FormatException("Invalid piece."); p.PutPiece(rank * 8 + file++, piece);
@@ -27,9 +36,8 @@ public static class Fen
         p.HalfmoveClock = f.Length >= 5 ? ParseNonNegative(f[4], "halfmove") : 0;
         p.FullmoveNumber = f.Length >= 6 ? ParsePositive(f[5], "fullmove") : 1;
         for (int sq = 0; sq < 64; sq++) if ((p.Board[sq] is 1 or 7) && (sq / 8 is 0 or 7)) throw new FormatException("Pawn on back rank.");
-p.Key = Zobrist.Compute(p);
-p.InitializeHistory();
-return p;
+        p.Key = Zobrist.Compute(p);
+        p.InitializeHistory();
     }
     public static string Format(Position p)
     {

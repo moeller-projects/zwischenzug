@@ -1,1 +1,4 @@
-Console.Error.WriteLine("Benchmarks will be added in M5");
+using BenchmarkDotNet.Running;
+using Zwischenzug.Benchmarks;
+
+BenchmarkSwitcher.FromAssembly(typeof(ChessBenchmarks).Assembly).Run(args);

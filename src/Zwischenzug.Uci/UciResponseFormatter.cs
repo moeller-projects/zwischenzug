@@ -32,6 +32,6 @@ public static class UciResponseFormatter
     private static int MateDistance(int score)
     {
         int distance = (30000 - Math.Abs(score) + 1) / 2;
-        return Math.Sign(score) * Math.Max(1, distance);
+        return Math.Sign(score) * distance;
     }
 }

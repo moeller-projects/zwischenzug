@@ -1,4 +1,5 @@
 using Zwischenzug.Core;
+using System.Numerics;
 
 namespace Zwischenzug.Engine;
 
@@ -10,7 +11,6 @@ public interface IEvaluator
 /// <summary>Material plus tapered middle/end-game piece-square evaluation.</summary>
 public sealed class MaterialPstEvaluator : IEvaluator
 {
-    private const int MaxPhase = 24;
     private readonly EvalParams _parameters;
 
     public MaterialPstEvaluator(EvalParams? parameters = null) => _parameters = parameters ?? new EvalParams();
@@ -19,20 +19,28 @@ public sealed class MaterialPstEvaluator : IEvaluator
     {
         if (pos.HasInsufficientMaterial()) return 0;
         int middle = 0, end = 0, phase = 0;
-        for (int square = 0; square < 64; square++)
+        for (int piece = 1; piece <= 12; piece++)
         {
-            int piece = pos.Board[square];
-            if (piece == 0) continue;
+            ulong pieces = pos.Pieces[piece];
+            if (pieces == 0) continue;
             int type = piece > 6 ? piece - 6 : piece;
             int sign = piece > 6 ? -1 : 1;
-            int tableSquare = sign > 0 ? square : square ^ 56;
-            int index = (type - 1) * 64 + tableSquare;
-            middle += sign * (_parameters.MaterialValues[type] + _parameters.MiddleGamePst[index]);
-            end += sign * (_parameters.MaterialValues[type] + _parameters.EndGamePst[index]);
-            phase += _parameters.PhaseWeights[type];
+            int count = BitOperations.PopCount(pieces);
+            int material = sign * count * _parameters.MaterialValues[type];
+            middle += material; end += material;
+            phase += count * _parameters.PhaseWeights[type];
+            while (pieces != 0)
+            {
+                int square = BitOperations.TrailingZeroCount(pieces); pieces &= pieces - 1;
+                int tableSquare = sign > 0 ? square : square ^ 56;
+                int index = (type - 1) * 64 + tableSquare;
+                middle += sign * _parameters.MiddleGamePst[index];
+                end += sign * _parameters.EndGamePst[index];
+            }
         }
-        if (phase > MaxPhase) phase = MaxPhase;
-        int score = (middle * phase + end * (MaxPhase - phase)) / MaxPhase;
+        int maxPhase = _parameters.MaxPhase;
+        phase = Math.Min(phase, maxPhase);
+        int score = (middle * phase + end * (maxPhase - phase)) / maxPhase;
         return pos.SideToMove == Position.White ? score : -score;
     }
 }

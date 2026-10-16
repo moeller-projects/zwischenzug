@@ -1,12 +1,13 @@
 namespace Zwischenzug.Engine;
 
-/// <summary>Immutable evaluation weights and piece-square tables.</summary>
+/// <summary>Evaluation weights and tables; keep them fixed for the duration of a search.</summary>
 public sealed class EvalParams
 {
     public int[] MaterialValues { get; }
     public int[] PhaseWeights { get; }
     public int[] MiddleGamePst { get; }
     public int[] EndGamePst { get; }
+    internal int MaxPhase { get; }
 
     public EvalParams(int[]? materialValues = null, int[]? phaseWeights = null, int[]? middleGamePst = null, int[]? endGamePst = null)
     {
@@ -14,6 +15,7 @@ public sealed class EvalParams
         PhaseWeights = phaseWeights is null ? [0, 0, 1, 1, 2, 4, 0] : ValidateWeights(phaseWeights);
         MiddleGamePst = middleGamePst is null ? CreatePst(false) : ValidateTable(middleGamePst);
         EndGamePst = endGamePst is null ? CreatePst(true) : ValidateTable(endGamePst);
+        MaxPhase = Math.Max(1, 16 * PhaseWeights[1] + 4 * PhaseWeights[2] + 4 * PhaseWeights[3] + 4 * PhaseWeights[4] + 2 * PhaseWeights[5] + 2 * PhaseWeights[6]);
     }
 
     private static int[] ValidateWeights(int[] values) => values.Length >= 7 ? (int[])values.Clone() : throw new ArgumentException("Evaluation arrays require seven entries.");

@@ -36,7 +36,7 @@ public sealed class EvaluationTests
         Assert.AreEqual(100, evaluator.Evaluate(Fen.Parse("4k3/8/8/8/8/8/4P3/4K3 w - - 0 1"), 0));
     }
 
-[TestMethod]
+    [TestMethod]
     public void StaticExchangeScoresWinningAndLosingCaptures()
     {
         var winning = Fen.Parse("4k3/8/8/3p4/4Q3/8/8/4K3 w - - 0 1");
@@ -49,6 +49,15 @@ public sealed class EvaluationTests
     public void PinnedDefenderCannotRecaptureWinningQueenCapture()
     {
         var p = Fen.Parse("4k3/4n3/6p1/5Q2/8/8/8/K3R3 w - - 0 1");
-        Assert.AreEqual(100, StaticExchange.Evaluate(p,Move.Parse(p,"f5g6")));
+        Assert.AreEqual(100, StaticExchange.Evaluate(p, Move.Parse(p, "f5g6")));
+    }
+
+    [TestMethod]
+    public void TaperedPhaseNormalizesAgainstConfiguredWeights()
+    {
+        var middle = new int[384]; middle[65] = 120;
+        var evaluator = new MaterialPstEvaluator(new EvalParams(new int[7], [0, 0, 10, 0, 0, 0, 0], middle, new int[384]));
+        var p = Fen.Parse("4k3/8/8/8/8/8/P7/1N2K3 w - - 0 1");
+        Assert.AreEqual(30, evaluator.Evaluate(p, 0));
     }
 }

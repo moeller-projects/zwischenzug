@@ -4,3 +4,6 @@ TestResults/
 BenchmarkDotNet.Artifacts/
 .vs/
 .env
+artifacts/
+# fastchess autosaved local match state
+/config.json

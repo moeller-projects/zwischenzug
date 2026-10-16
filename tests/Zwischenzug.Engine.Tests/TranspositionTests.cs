@@ -104,11 +104,11 @@ public sealed class TranspositionTests
     public void ShallowerSameKeyDoesNotDestroyDeeperCurrentResult()
     {
         var table = new TranspositionTable(1);
-        table.Store(99,8,123,Bound.Exact,new Move(1,18),0);
-        table.Store(99,2,50,Bound.Lower,new Move(6,21),0);
-        Assert.IsTrue(table.TryGet(99,0,out var entry));
-        Assert.AreEqual(8,entry.Depth);
-        Assert.AreEqual(123,entry.Score);
-        Assert.AreEqual(new Move(1,18),entry.BestMove);
+        table.Store(99, 8, 123, Bound.Exact, new Move(1, 18), 0);
+        table.Store(99, 2, 50, Bound.Lower, new Move(6, 21), 0);
+        Assert.IsTrue(table.TryGet(99, 0, out var entry));
+        Assert.AreEqual(8, entry.Depth);
+        Assert.AreEqual(123, entry.Score);
+        Assert.AreEqual(new Move(1, 18), entry.BestMove);
     }
 }

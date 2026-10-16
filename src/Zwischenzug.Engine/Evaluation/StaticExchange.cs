@@ -74,15 +74,15 @@ public static class StaticExchange
         type = 0; return -1;
     }
 
-    private static bool Attacked(Position p,int square,int side,ulong occupied,int exchangeSquare)
+    private static bool Attacked(Position p, int square, int side, ulong occupied, int exchangeSquare)
     {
         int offset = side * 6;
         ulong active = occupied & ~(1UL << exchangeSquare);
-        return (Attacks.Pawn(square,side ^ 1) & p.Pieces[1+offset] & active) != 0
-            || (Attacks.Knight(square) & p.Pieces[2+offset] & active) != 0
-            || (Attacks.King(square) & p.Pieces[6+offset] & active) != 0
-            || (Attacks.Bishop(square,occupied) & (p.Pieces[3+offset] | p.Pieces[5+offset]) & active) != 0
-            || (Attacks.Rook(square,occupied) & (p.Pieces[4+offset] | p.Pieces[5+offset]) & active) != 0;
+        return (Attacks.Pawn(square, side ^ 1) & p.Pieces[1 + offset] & active) != 0
+            || (Attacks.Knight(square) & p.Pieces[2 + offset] & active) != 0
+            || (Attacks.King(square) & p.Pieces[6 + offset] & active) != 0
+            || (Attacks.Bishop(square, occupied) & (p.Pieces[3 + offset] | p.Pieces[5 + offset]) & active) != 0
+            || (Attacks.Rook(square, occupied) & (p.Pieces[4 + offset] | p.Pieces[5 + offset]) & active) != 0;
     }
 
     private static int Value(int piece) => piece == 0 ? 0 : Values[piece > 6 ? piece - 6 : piece];
