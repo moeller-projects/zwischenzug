@@ -14,3 +14,7 @@ User chose in-place implementation on feature branch feat/chess-engine. Original
 ## Evidence
 
 - Preparation: clean empty repository, .NET 10 SDK available.
+- M0: Release solution build: zero warnings/errors. MTP starts all four empty test assemblies. Empty-scaffold exit code 8 explicitly ignored only for the M0 smoke, not for final validation; no fabricated tests added.
+- M1 RED: Core acceptance suite could not compile before Move/MoveGenerator/Perft existed.
+- M1 GREEN: 29 Core tests passed normally on MTP. Published perft counts cover start d1–5, Kiwipete d1–3, CPW positions 3–6 d1–4. Every move in depth-three trees restores mailbox, bitboards, FEN and incremental key.
+- M1 CLI smoke: Release perft(5) = 4,865,609 in 192.29 ms; perft(6) = 119,060,324 in 1,261.32 ms. Both supplied timing targets met on this workstation.
