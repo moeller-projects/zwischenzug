@@ -1,1 +1,10 @@
-<Project Sdk="MSTest.Sdk"><PropertyGroup><EnableMSTestRunner>true</EnableMSTestRunner><TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport></PropertyGroup><ItemGroup><ProjectReference Include="../../src/Zwischenzug.Lichess/Zwischenzug.Lichess.csproj"/></ItemGroup></Project>
+<Project Sdk="MSTest.Sdk">
+  <PropertyGroup>
+    <EnableMSTestRunner>true</EnableMSTestRunner>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Zwischenzug.Lichess/Zwischenzug.Lichess.csproj"/>
+    <None Update="Fixtures/*.ndjson" CopyToOutputDirectory="PreserveNewest"/>
+  </ItemGroup>
+</Project>

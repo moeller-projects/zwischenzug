@@ -1,0 +1,3 @@
+{"type":"gameFull","id":"fixture-game","initialFen":"startpos","white":{"id":"zwischenzug","name":"Zwischenzug"},"black":{"id":"opponent","name":"Opponent"},"state":{"type":"gameState","moves":"","status":"started","wtime":1000,"btime":1000,"winc":10,"binc":10}}
+{"type":"gameState","moves":"","status":"started","wtime":1000,"btime":1000,"winc":10,"binc":10}
+{"type":"chatLine","username":"opponent","text":"Good luck"}

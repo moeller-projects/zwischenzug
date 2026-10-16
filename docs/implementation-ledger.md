@@ -2,7 +2,7 @@
 
 ## Workspace
 
-User chose in-place implementation on feature branch feat/chess-engine. Original checkout clean; only README existed. SDK 10.0.402 installed. User authorized restore, builds and tests; publish and Docker image builds are not authorized.
+User chose in-place implementation on feature branch feat/chess-engine. Original checkout clean; only README existed. SDK 10.0.402 installed. User authorized restore, builds, tests and later framework-dependent publish. Neither Docker nor clang is on PATH; image builds and Native AOT publish are not authorized.
 
 ## Preflight rulings
 
@@ -28,3 +28,9 @@ User chose in-place implementation on feature branch feat/chess-engine. Original
 - M3 bench corpus: 25 distinct tactical/quiet/endgame FENs, cleared TT per position. Two actual CLI runs each returned 290,830 nodes (45,572 TT probes, 16,734 hits); committed ExpectedDefaultNodes.
 - M3 first fastchess v1.8.2-alpha match: ten games at 5+0.05, concurrency two, all finished; no crashes, illegal moves or time losses. Outcome 5–5; not strength evidence. Runner noted no opening book; a second run exercises the documented script and fixed EPD openings.
 - M3 review rulings: fatal search faults cancel pending input and propagate instead of hanging or inventing bestmove. Infinite mode requests the full supported search ceiling and withholds bestmove until stop; terminal/ceiling waiting is intentional, not repeated identical work.
+- M3 second documented-script run: nine complete games (mates and fifty-move draw), tenth in progress when the 300-second harness deadline stopped the run. This is not recorded as a second ten-game pass; the first complete match satisfies that criterion.
+- M4 GREEN: 18 Lichess tests pass. Fake HTTP fixtures cover challenge/gameStart/gameFull/gameState/chat/finish; legal moves, black-to-move initial FEN, duplicate snapshots, reservation ownership, cancellation, dropped-stream reconnect, 429 delay and token safety.
+- M4 actual CLI loopback smoke: configuration/DI/typed HttpClient opened both streams, accepted a standard challenge and submitted legal b1c3. Stdout empty; HTTP logs on stderr; dummy credential absent from output.
+- M4 review fixes: challenge-response races no longer kill unrelated games; move POST failures reconcile a fresh gameFull before retry; game starts release only their matching reservation. Official gameId wire field supported alongside id. Four new regression cases pass. Security review: no findings.
+- Live Lichess play is manual-only and has not run; no real account/token used. Fixtures are sanitized representative protocol payloads, not claimed live traffic recordings.
+- M4 review closed: primary Lichess source defines gameId as the challenge ID and creates the game with that ID. Corrected the inconsistent synthetic fixture rather than guessing reservation correlation. State reviewer withdrew the remaining finding; all 18 tests pass again.
