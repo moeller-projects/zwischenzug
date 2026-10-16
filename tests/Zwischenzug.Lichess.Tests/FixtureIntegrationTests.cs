@@ -28,6 +28,7 @@ public sealed class FixtureIntegrationTests
         handler.Game.Send(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "Fixtures", "game.ndjson"), stop.Token));
         string move = await handler.Move.Task.WaitAsync(stop.Token);
         await handler.Accepted.Task.WaitAsync(stop.Token);
+        await handler.Declined.Task.WaitAsync(stop.Token);
         Assert.AreEqual(move, Move.Parse(new Position(), move).ToString());
         Assert.IsTrue(handler.Requests.Contains("/api/challenge/fixture-game/accept"));
         Assert.AreEqual("reason=variant", handler.Declines["/api/challenge/nonstandard/decline"]);
@@ -48,6 +49,7 @@ public sealed class FixtureIntegrationTests
         public TaskCompletionSource<string> Move { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public ConcurrentBag<string> Requests { get; } = [];
         public TaskCompletionSource Accepted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Declined { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public ConcurrentDictionary<string, string> Declines { get; } = new();
         public int MoveCount;
         public bool SawAuthorization;
@@ -58,7 +60,7 @@ public sealed class FixtureIntegrationTests
             if (path == "/api/stream/event") return new(HttpStatusCode.OK) { Content = new StreamContent(Events) };
             if (path == "/api/challenge/fixture-game/accept") Accepted.TrySetResult();
             if (path == "/api/bot/game/stream/fixture-game") return new(HttpStatusCode.OK) { Content = new StreamContent(Game) };
-            if (path.EndsWith("/decline", StringComparison.Ordinal)) Declines[path] = await request.Content!.ReadAsStringAsync(ct);
+            if (path.EndsWith("/decline", StringComparison.Ordinal)) { Declines[path] = await request.Content!.ReadAsStringAsync(ct); Declined.TrySetResult(); }
             if (path.Contains("/move/", StringComparison.Ordinal)) { Interlocked.Increment(ref MoveCount); Move.TrySetResult(path[(path.LastIndexOf('/') + 1)..]); }
             return new(HttpStatusCode.OK) { Content = new StringContent("{\"ok\":true}") };
         }
