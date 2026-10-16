@@ -7,3 +7,4 @@ BenchmarkDotNet.Artifacts/
 artifacts/
 # fastchess autosaved local match state
 /config.json
+.idea/
