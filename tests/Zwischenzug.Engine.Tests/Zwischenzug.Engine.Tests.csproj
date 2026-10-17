@@ -1,0 +1,1 @@
+<Project Sdk="MSTest.Sdk"><PropertyGroup><EnableMSTestRunner>true</EnableMSTestRunner><TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport></PropertyGroup><ItemGroup><ProjectReference Include="../../src/Zwischenzug.Engine/Zwischenzug.Engine.csproj"/></ItemGroup></Project>

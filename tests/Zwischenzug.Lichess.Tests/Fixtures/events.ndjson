@@ -1,0 +1,3 @@
+{"type":"challenge","challenge":{"id":"nonstandard","rated":false,"variant":{"key":"chess960"},"timeControl":{"type":"clock"}}}
+{"type":"challenge","challenge":{"id":"fixture-game","rated":false,"variant":{"key":"standard"},"timeControl":{"type":"clock"}}}
+{"type":"gameStart","game":{"id":"fixture-game","gameId":"fixture-game"}}
