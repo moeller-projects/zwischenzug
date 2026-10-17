@@ -102,14 +102,21 @@ The initial cold Dry run took 220 ms for perft(5); JIT startup is not representa
 
 ## Packaging
 
-The verified publish mode is **framework-dependent**, not Native AOT:
+The CLI has been published and runtime-smoke-tested as both framework-dependent and Native AOT for **Windows x64 (`win-x64`)**. This does not establish support for other RIDs. Reproduce both local checks in PowerShell:
 
-```sh
-dotnet publish src/Zwischenzug.Cli -c Release --no-restore --self-contained false -p:UseAppHost=false -o artifacts/publish
-dotnet artifacts/publish/Zwischenzug.Cli.dll bench 5
+```powershell
+dotnet publish src/Zwischenzug.Cli/Zwischenzug.Cli.csproj -c Release -r win-x64 --self-contained false -o artifacts/publish/p2-5/fdd/win-x64
+dotnet artifacts/publish/p2-5/fdd/win-x64/Zwischenzug.Cli.dll perft 5
+@('uci', 'isready', 'quit') | dotnet artifacts/publish/p2-5/fdd/win-x64/Zwischenzug.Cli.dll uci
+
+dotnet publish src/Zwischenzug.Cli/Zwischenzug.Cli.csproj -c Release -r win-x64 --self-contained true -p:PublishAot=true -o artifacts/publish/p2-5/aot/win-x64
+& 'artifacts/publish/p2-5/aot/win-x64/Zwischenzug.Cli.exe' perft 5
+@('uci', 'isready', 'quit') | & 'artifacts/publish/p2-5/aot/win-x64/Zwischenzug.Cli.exe' uci
 ```
 
-The multi-stage `Dockerfile` uses the pinned SDK and a .NET 10 runtime, runs as the runtime image's non-root `APP_UID`, and defaults to `uci`. Once Docker is available, these are the image verification commands:
+Both outputs returned `nodes 4865609` for `perft 5` and completed a UCI/`isready` handshake.
+
+The multi-stage `Dockerfile` uses the pinned SDK and a .NET 10 runtime, runs as the runtime image's non-root `APP_UID`, and defaults to `uci`. These are the image verification commands:
 
 ```sh
 docker build -t zwischenzug .
@@ -117,7 +124,7 @@ docker run --rm -i zwischenzug
 docker run --rm zwischenzug bench 5
 ```
 
-Docker image build/runtime verification was **not run** because Docker is unavailable. Native AOT publish was **not run**; library AOT compatibility and generated JSON do not establish whole-application AOT publishing. See [ADR 0004](docs/adr/0004-packaging-and-verification-boundaries.md) for these boundaries and plan deviations.
+Docker image build/runtime verification was **not run**. Native AOT is verified only for the Windows x64 CLI; no other RID is claimed. See [ADR 0004](docs/adr/0004-packaging-and-verification-boundaries.md) and [the implementation ledger](docs/implementation-ledger.md) for evidence and remaining boundaries.
 
 ## Architecture and verification
 

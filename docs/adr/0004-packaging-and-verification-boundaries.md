@@ -1,12 +1,12 @@
-# ADR 0004: Framework-dependent packaging and explicit verification boundaries
+# ADR 0004: Packaging and explicit verification boundaries
 
 Status: accepted.
 
 The default container is multi-stage and framework-dependent. The build stage pins SDK 10.0.402; the runtime uses .NET 10, invariant globalization and the image's non-root APP_UID. Publishing disables the apphost so the output is portable managed IL for the runtime container. Credentials are supplied only at runtime.
 
-Native AOT was not attempted: only framework-dependent publish was authorized, and native toolchain/container validation is not available in this environment. Libraries declare IsAotCompatible, and Lichess uses source-generated JSON, but these are not evidence that the full CLI has passed Native AOT publishing. Do not describe the container as AOT. Enabling AOT requires a separately authorized publish on a supported native toolchain and review of every trim/AOT diagnostic.
+The full CLI was published and runtime-smoke-tested as both framework-dependent and Native AOT for `win-x64`. Both outputs returned the expected `perft 5` node count and completed a UCI/`isready` handshake. This evidence covers only Windows x64; it does not validate other RIDs or an AOT container. Do not describe the container as AOT.
 
-Docker is not installed here, so the Dockerfile can be reviewed but no image build or container runtime pass is claimed. The framework-dependent artifact is verified locally after publish. CI executes restore, Release build, MTP tests and the deterministic CLI bench. A hosted CI run is not claimed by local validation.
+Docker image build/runtime verification remains unrun; the Dockerfile is reviewed but not validated in an image. CI executes restore, Release build, MTP tests and the deterministic CLI bench. A hosted CI run is not claimed by local validation.
 
 The plan's magic-attack implementation is replaced by occupancy subset lookup with guarded PEXT plus software fallback; see ADR 0001. Position is a reference type owning fixed mutable state rather than a copied struct. Default benchmark depth is five, not the illustrative twelve, to keep CI bounded; callers can select deeper searches. Search depth is explicitly capped at 94 plies.
 

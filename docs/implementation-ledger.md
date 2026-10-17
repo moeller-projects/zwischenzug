@@ -2,7 +2,7 @@
 
 ## Workspace
 
-User chose in-place implementation on feature branch feat/chess-engine. Original checkout clean; only README existed. SDK 10.0.402 installed. User authorized restore, builds, tests and later framework-dependent publish. Neither Docker nor clang is on PATH; image builds and Native AOT publish are not authorized.
+User chose in-place implementation on feature branch `feat/chess-engine`. Original checkout clean; only README existed. SDK 10.0.402 installed. User authorized restore, builds, tests and later framework-dependent publish. At initial preflight, neither Docker nor clang was on PATH; image builds and Native AOT publish were not yet authorized.
 
 ## Preflight rulings
 
@@ -88,10 +88,11 @@ User chose in-place implementation on feature branch feat/chess-engine. Original
 - Verification: Release solution build succeeded with 0 warnings/errors; all 119 solution tests passed (0 failed/skipped), including the 1-thread benchmark signature regression. Both PowerShell scripts parsed successfully. The requirements script smoke skipped already-present tool directories without downloading; the UCI launcher completed actual `uci`/`isready`/`quit` handshake. No fastchess strength match or standalone performance benchmark was run; no strength or scaling claim is made. Tablebases remain deferred under U2.
 - P2-4 stack: `phase2/m4-smp` is based on `phase2/m3-nnue`. Commits: `2ea6bd0 feat(engine): add parallel, MultiPV, and ponder search`; `72d7443 feat(uci): expose parallel, MultiPV, WDL, and ponder options`; `7ecb487 chore(tooling): add pinned download and UCI launch scripts`.
 
-### P2-5 release evidence (documentation complete; release operations deferred)
+### P2-5 release evidence (win-x64 verified; remaining release gates deferred)
 
 - Release-documentation review found stale architecture claims that the engine was single-threaded, UCI Threads was ignored, the TT was single-owner, and pondering was unsupported. Updated README, architecture, ADR 0002 and AGENTS runtime guidance to match P2-4 behavior. Marked the prior BenchmarkDotNet table as a historical P2-3 measurement because current P2-4 search timings were not measured.
-- The earlier framework-dependent CLI publish remains the only verified publish mode. No Native AOT publish, Docker image build/runtime, hosted CI run, external rating submission or live Lichess operation was performed in this milestone.
-- User decision (2026-10-17): defer Native AOT, Docker and remaining release operations. Keep these gates documented and make no support or release-readiness claim for unverified RIDs or external services.
-- P2-5 branch `phase2/m5-release` stacks on `phase2/m4-smp`. Documentation commit: `08db501 docs(release): update SMP architecture and evidence boundaries`.
-- Deferral recorded in `0eaf6b4 docs(release): record deferred verification gates`.
+- After the earlier deferral, the user explicitly authorized framework-dependent and Native AOT publish/runtime smoke for `win-x64`. Both `dotnet publish` commands completed successfully on the current P2-5 branch; the Native AOT publish generated native code without warning lines in the output.
+- Framework-dependent command: `dotnet publish src/Zwischenzug.Cli/Zwischenzug.Cli.csproj -c Release -r win-x64 --self-contained false -o artifacts/publish/p2-5/fdd/win-x64/`. Native AOT command: `dotnet publish src/Zwischenzug.Cli/Zwischenzug.Cli.csproj -c Release -r win-x64 --self-contained true -p:PublishAot=true -o artifacts/publish/p2-5/aot/win-x64/`.
+- Each published output returned `nodes 4865609` for `perft 5` and completed a UCI/`isready` handshake with `uciok` and `readyok`. The generated artifacts remain under ignored `artifacts/publish/p2-5/`.
+- Only Windows x64 (`win-x64`) is verified. No other RID or AOT container is claimed. Docker image/runtime, hosted CI, external rating submission, deployment, live Lichess, and standalone performance benchmarking remain unrun/deferred.
+- P2-5 branch `phase2/m5-release` stacks on `phase2/m4-smp`. Earlier commits: `08db501 docs(release): update SMP architecture and evidence boundaries`; `0eaf6b4 docs(release): record deferred verification gates`; `4402a15 docs: record release deferral commit`.
