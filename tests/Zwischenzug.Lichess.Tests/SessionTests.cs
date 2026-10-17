@@ -97,7 +97,7 @@ public sealed class SessionTests
     {
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5)); var client = new FakeClient();
         client.Accept = id => id == "bad" ? Task.FromException(new LichessApiException(System.Net.HttpStatusCode.NotFound, "canceled fixture challenge")) : Task.CompletedTask;
-        var runner = new BotRunner(client, Options.Create(new LichessOptions()), NullLogger<BotRunner>.Instance, NullLoggerFactory.Instance);
+        var runner = new BotRunner(client, Options.Create(new LichessOptions { MaxConcurrentGames = 2 }), NullLogger<BotRunner>.Instance, NullLoggerFactory.Instance);
         Task run = runner.RunAsync(stop.Token);
         BotEvent Offer(string id) => new() { Type = "challenge", Challenge = new() { Id = id, Variant = new() { Key = "standard" }, TimeControl = new() { Type = "clock" } } };
         await client.Events.SendAsync(Offer("bad"), stop.Token);
