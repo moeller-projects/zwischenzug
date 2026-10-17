@@ -18,6 +18,25 @@ dotnet run --project src/Zwischenzug.Cli -- bench 6
 
 `bench` searches the fixed 25-position suite in `Zwischenzug.Engine.BenchmarkSuite` (depth 5 by default) and reports total nodes, elapsed time, NPS, and transposition-table probes/hits. The committed depth-five node signature is **290,830**, observed identically on two runs. Search changes must intentionally update `ExpectedDefaultNodes` and its regression test. Runtime and NPS are hardware-dependent.
 
+
+## Local tool setup
+
+Download the pinned Windows fastchess release and Bullet source snapshot into the ignored `artifacts/local-tools/` directory:
+
+```powershell
+.\tools\download-requirements.ps1
+```
+
+The downloader verifies fastchess v1.8.2-alpha with SHA-256 and pins Bullet to revision `869e30934402d912609d3ee2baa9696a12e1f783`. It does not download datasets, opening books, tablebases, CUDA, or Visual Studio Build Tools. To install Rustup through winget and then the stable Rust toolchain, run `.\tools\download-requirements.ps1 -Tool bullet -InstallRust`; if Rustup was newly installed, open a new PowerShell session and rerun the command.
+
+After building the CLI using the commands in [AGENTS.md](AGENTS.md), start its UCI protocol with:
+
+```powershell
+.\tools\start-uci.ps1 -Configuration Release
+```
+
+The launcher uses `dotnet run --no-build --no-restore`; it does not build or restore the solution. Set `Nnue__ModelPath` before starting to select a packaged NNUE model. For local matches, use [tools/match](tools/match/README.md); the downloaded fastchess executable can be passed with `-Fastchess artifacts\local-tools\fastchess-windows-x86-64\fastchess.exe`. The Bullet source snapshot is a training library, not a ready-to-run trainer: configure a training example and provide a licensed dataset before running training.
+
 ## Ten-game self-play
 
 The commands in [tools/match/](tools/match/) run ten games between two local engine binaries with `fastchess` or `cutechess-cli`. They use a 10-second clock plus 0.1-second increment and stop after ten games. Add `-Sprt` to the fastchess script for a separate strength comparison: H0 = 0 Elo, H1 = 5 Elo, alpha = 0.05, beta = 0.05, with up to 100,000 games. Install the selected match tool separately; scripts never download tools automatically.
