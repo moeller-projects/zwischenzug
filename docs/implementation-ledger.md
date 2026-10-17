@@ -94,3 +94,4 @@ User chose in-place implementation on feature branch feat/chess-engine. Original
 - The earlier framework-dependent CLI publish remains the only verified publish mode. No Native AOT publish, Docker image build/runtime, hosted CI run, external rating submission or live Lichess operation was performed in this milestone.
 - User decision (2026-10-17): defer Native AOT, Docker and remaining release operations. Keep these gates documented and make no support or release-readiness claim for unverified RIDs or external services.
 - P2-5 branch `phase2/m5-release` stacks on `phase2/m4-smp`. Documentation commit: `08db501 docs(release): update SMP architecture and evidence boundaries`.
+- Deferral recorded in `0eaf6b4 docs(release): record deferred verification gates`.
