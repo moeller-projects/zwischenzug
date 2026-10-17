@@ -5,17 +5,17 @@ namespace Zwischenzug.Lichess;
 
 public sealed class BotRunner(ILichessClient client, IOptions<LichessOptions> options, ILogger<BotRunner> logger, ILoggerFactory loggerFactory)
 {
-    private readonly object _gate = new();
-    private readonly Dictionary<string, GameSlot> _games = new(StringComparer.Ordinal);
-    private readonly HashSet<string> _pending = new(StringComparer.Ordinal);
-    private readonly ChallengePolicy _policy = new(options);
+    private readonly object _Gate = new();
+    private readonly Dictionary<string, GameSlot> _Games = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _Pending = new(StringComparer.Ordinal);
+    private readonly ChallengePolicy _Policy = new(options);
     private sealed class GameSlot(CancellationTokenSource cancellation)
     {
         public CancellationTokenSource Cancellation { get; } = cancellation;
         public Task Task { get; set; } = Task.CompletedTask;
     }
-    private readonly List<Task> _challengeTasks = [];
-    private Exception? _fatalFailure;
+    private readonly List<Task> _ChallengeTasks = [];
+    private Exception? _FatalFailure;
 
     public async Task RunAsync(CancellationToken ct = default)
     {
@@ -31,27 +31,27 @@ public sealed class BotRunner(ILichessClient client, IOptions<LichessOptions> op
                     case "challenge" when message.Challenge is not null:
                         DispatchChallenge(message.Challenge,loopToken,runCancellation); break;
                     case "challengeCanceled" or "challengeDeclined" when message.Challenge is not null:
-                        lock (_gate) _pending.Remove(message.Challenge.Id); break;
+                        lock (_Gate) _Pending.Remove(message.Challenge.Id); break;
                     case "gameStart" when gameId.Length > 0:
                         StartGame(gameId, loopToken); break;
                     case "gameFinish" when gameId.Length > 0:
-                        lock (_gate) if (_games.TryGetValue(gameId, out var game)) game.Cancellation.Cancel();
+                        lock (_Gate) if (_Games.TryGetValue(gameId, out var game)) game.Cancellation.Cancel();
                         break;
                 }
             }
         }
-        catch (OperationCanceledException) when (runCancellation.IsCancellationRequested && !ct.IsCancellationRequested && _fatalFailure is not null)
+        catch (OperationCanceledException) when (runCancellation.IsCancellationRequested && !ct.IsCancellationRequested && _FatalFailure is not null)
         {
-            throw _fatalFailure;
+            throw _FatalFailure;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
         finally
         {
             Task[] tasks;
-            lock (_gate)
+            lock (_Gate)
             {
-                foreach (var slot in _games.Values.ToArray()) slot.Cancellation.Cancel();
-                tasks = _games.Values.Select(slot => slot.Task).Concat(_challengeTasks).ToArray(); _pending.Clear();
+                foreach (var slot in _Games.Values.ToArray()) slot.Cancellation.Cancel();
+                tasks = _Games.Values.Select(slot => slot.Task).Concat(_ChallengeTasks).ToArray(); _Pending.Clear();
             }
             await Task.WhenAll(tasks).ConfigureAwait(false);
         }
@@ -59,27 +59,27 @@ public sealed class BotRunner(ILichessClient client, IOptions<LichessOptions> op
 
     private void DispatchChallenge(Challenge challenge,CancellationToken ct,CancellationTokenSource abort)
     {
-        string? reason = _policy.DeclineReason(challenge);
-        lock (_gate)
+        string? reason = _Policy.DeclineReason(challenge);
+        lock (_Gate)
         {
-            if (_pending.Contains(challenge.Id)) return;
-            if (reason is null && _games.Count + _pending.Count >= options.Value.MaxConcurrentGames) reason = "later";
-            if (reason is null) _pending.Add(challenge.Id);
+            if (_Pending.Contains(challenge.Id)) return;
+            if (reason is null && _Games.Count + _Pending.Count >= options.Value.MaxConcurrentGames) reason = "later";
+            if (reason is null) _Pending.Add(challenge.Id);
             Task? task = null;
             task = Task.Run(async () =>
             {
                 try { await ChallengeAsync(challenge,reason,ct).ConfigureAwait(false); }
                 catch (Exception ex) when (ex is LichessApiException { StatusCode: System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden })
                 {
-                    _fatalFailure = ex; abort.Cancel();
+                    _FatalFailure = ex; abort.Cancel();
                 }
                 catch (Exception ex) when (!ct.IsCancellationRequested)
                 {
                     logger.LogError(ex,"Unhandled failure handling challenge {ChallengeId}",challenge.Id);
                 }
-                finally { lock (_gate) if (task is not null) _challengeTasks.Remove(task); }
+                finally { lock (_Gate) if (task is not null) _ChallengeTasks.Remove(task); }
             },CancellationToken.None);
-            _challengeTasks.Add(task);
+            _ChallengeTasks.Add(task);
         }
     }
 
@@ -94,25 +94,25 @@ public sealed class BotRunner(ILichessClient client, IOptions<LichessOptions> op
             exception.StatusCode is not (System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden))
         {
             // A known rejection releases capacity; an ambiguous accept awaits start/cancel.
-            if (exception.StatusCode is not null) lock (_gate) _pending.Remove(challenge.Id);
+            if (exception.StatusCode is not null) lock (_Gate) _Pending.Remove(challenge.Id);
             logger.LogWarning("Challenge response failed for {ChallengeId}, HTTP {Status}", challenge.Id, exception.StatusCode);
         }
-        catch { lock (_gate) _pending.Remove(challenge.Id); throw; }
-        if (reason is not null) lock (_gate) _pending.Remove(challenge.Id);
+        catch { lock (_Gate) _Pending.Remove(challenge.Id); throw; }
+        if (reason is not null) lock (_Gate) _Pending.Remove(challenge.Id);
     }
 
     private void StartGame(string id, CancellationToken ct)
     {
-        lock (_gate)
+        lock (_Gate)
         {
-            if (_games.ContainsKey(id)) return;
-            _pending.Remove(id);
-            if (_games.Count >= options.Value.MaxConcurrentGames)
+            if (_Games.ContainsKey(id)) return;
+            _Pending.Remove(id);
+            if (_Games.Count >= options.Value.MaxConcurrentGames)
             {
                 logger.LogError("Cannot start game {GameId}: configured concurrent game limit reached", id); return;
             }
             var slot = new GameSlot(CancellationTokenSource.CreateLinkedTokenSource(ct));
-            _games.Add(id, slot);
+            _Games.Add(id, slot);
             slot.Task = RunGameAsync(id, slot);
         }
     }
@@ -123,7 +123,7 @@ public sealed class BotRunner(ILichessClient client, IOptions<LichessOptions> op
         catch (Exception exception) { logger.LogError(exception, "Lichess game {GameId} session failed", id); }
         finally
         {
-            lock (_gate) _games.Remove(id);
+            lock (_Gate) _Games.Remove(id);
             slot.Cancellation.Dispose();
         }
     }

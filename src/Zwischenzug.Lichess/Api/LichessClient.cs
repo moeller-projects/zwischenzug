@@ -12,15 +12,15 @@ public sealed class LichessApiException(HttpStatusCode statusCode, string messag
 
 public sealed class LichessClient : ILichessClient
 {
-    private readonly HttpClient _http;
-    private readonly LichessOptions _options;
-    private readonly TimeProvider _time;
+    private readonly HttpClient _Http;
+    private readonly LichessOptions _Options;
+    private readonly TimeProvider _Time;
 
     public LichessClient(HttpClient httpClient, IOptions<LichessOptions> options, ILogger<LichessClient> logger, TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(logger);
-        _http = httpClient; _options = options.Value; _options.Validate();
-        _time = timeProvider ?? TimeProvider.System;
+        _Http = httpClient; _Options = options.Value; _Options.Validate();
+        _Time = timeProvider ?? TimeProvider.System;
     }
 
     public IAsyncEnumerable<BotEvent> StreamEventsAsync(CancellationToken ct = default) => StreamAsync("/api/stream/event", LichessJsonContext.Default.BotEvent, ct);
@@ -66,7 +66,7 @@ public sealed class LichessClient : ILichessClient
             try
             {
                 using var request = Request(HttpMethod.Get, path);
-                response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+                response = await _Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
             }
             catch (HttpRequestException) when (!ct.IsCancellationRequested)
             {
@@ -91,7 +91,7 @@ public sealed class LichessClient : ILichessClient
         {
             using var request = Request(HttpMethod.Post, path);
             if (reason is not null) request.Content = new FormUrlEncodedContent([new KeyValuePair<string, string>("reason", reason)]);
-            using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+            using var response = await _Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
             if (response.StatusCode == HttpStatusCode.TooManyRequests)
             {
                 await DelayAsync(TimeSpan.FromSeconds(60), ct).ConfigureAwait(false); continue;
@@ -103,12 +103,12 @@ public sealed class LichessClient : ILichessClient
 
     private HttpRequestMessage Request(HttpMethod method, string path)
     {
-        var request = new HttpRequestMessage(method, new Uri(_options.BaseAddress, path));
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _options.Token);
+        var request = new HttpRequestMessage(method, new Uri(_Options.BaseAddress, path));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _Options.Token);
         return request;
     }
     private static string Escape(string value) { ArgumentException.ThrowIfNullOrWhiteSpace(value); return Uri.EscapeDataString(value); }
-    private Task DelayAsync(TimeSpan delay, CancellationToken ct) => Task.Delay(delay, _time, ct);
+    private Task DelayAsync(TimeSpan delay, CancellationToken ct) => Task.Delay(delay, _Time, ct);
     private static TimeSpan Backoff(int failures) => TimeSpan.FromSeconds(Math.Min(30, 1 << Math.Clamp(failures - 1, 0, 5)));
     private static void EnsureSuccess(HttpResponseMessage response)
     {

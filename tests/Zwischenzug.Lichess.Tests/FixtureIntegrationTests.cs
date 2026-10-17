@@ -68,9 +68,9 @@ public sealed class FixtureIntegrationTests
 
     private sealed class PushStream : Stream
     {
-        private readonly Channel<byte[]> _chunks = Channel.CreateUnbounded<byte[]>();
-        private byte[]? _current; private int _offset;
-        public void Send(string text) => _chunks.Writer.TryWrite(Encoding.UTF8.GetBytes(text));
+        private readonly Channel<byte[]> _Chunks = Channel.CreateUnbounded<byte[]>();
+        private byte[]? _Current; private int _Offset;
+        public void Send(string text) => _Chunks.Writer.TryWrite(Encoding.UTF8.GetBytes(text));
         public override bool CanRead => true;
         public override bool CanSeek => false;
         public override bool CanWrite => false;
@@ -79,9 +79,9 @@ public sealed class FixtureIntegrationTests
         public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
         public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default)
         {
-            if (_current is null || _offset == _current.Length) { _current = await _chunks.Reader.ReadAsync(ct); _offset = 0; }
-            int count = Math.Min(buffer.Length, _current.Length - _offset);
-            _current.AsMemory(_offset, count).CopyTo(buffer); _offset += count; return count;
+            if (_Current is null || _Offset == _Current.Length) { _Current = await _Chunks.Reader.ReadAsync(ct); _Offset = 0; }
+            int count = Math.Min(buffer.Length, _Current.Length - _Offset);
+            _Current.AsMemory(_Offset, count).CopyTo(buffer); _Offset += count; return count;
         }
         public override void Flush() { }
         public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();

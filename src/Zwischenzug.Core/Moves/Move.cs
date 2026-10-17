@@ -23,8 +23,8 @@ public readonly record struct Move
 
 public ref struct MoveList(Span<Move> storage)
 {
-    private readonly Span<Move> _storage = storage;
+    private readonly Span<Move> _Storage = storage;
     public int Count { get; private set; }
-    public readonly Span<Move> Moves => _storage[..Count];
-    public void Add(Move move) => _storage[Count++] = move;
+    public readonly Span<Move> Moves => _Storage[..Count];
+    public void Add(Move move) => _Storage[Count++] = move;
 }

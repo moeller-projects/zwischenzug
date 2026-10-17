@@ -20,10 +20,10 @@ public sealed class Position
     public int Ply { get; internal set; }
 
     private const int MaxPly = 1024;
-    private readonly Undo[] _undo = new Undo[MaxPly];
-    private readonly ulong[] _history = new ulong[MaxPly + 1];
-    private readonly bool[] _realHistory = new bool[MaxPly + 1];
-    private int _historyLength;
+    private readonly Undo[] _Undo = new Undo[MaxPly];
+    private readonly ulong[] _History = new ulong[MaxPly + 1];
+    private readonly bool[] _RealHistory = new bool[MaxPly + 1];
+    private int _HistoryLength;
 
     private struct Undo
     {
@@ -39,7 +39,7 @@ public sealed class Position
 
     internal Position(bool empty) { }
 
-    internal void InitializeHistory() { Ply = 0; _historyLength = 1; _history[0] = Key; _realHistory[0] = true; }
+    internal void InitializeHistory() { Ply = 0; _HistoryLength = 1; _History[0] = Key; _RealHistory[0] = true; }
 
     internal void PutPiece(int square, int piece)
     {
@@ -98,7 +98,7 @@ public sealed class Position
         if (SideToMove == Black) FullmoveNumber++;
         SideToMove ^= 1; Ply++;
         Key ^= Zobrist.SideValue; Key ^= Zobrist.CastleValue(Castling); if (EnPassant >= 0 && Zobrist.HasEp(this)) Key ^= Zobrist.EpValue(EnPassant);
-        _undo[Ply - 1] = u; PushHistory(Key, true);
+        _Undo[Ply - 1] = u; PushHistory(Key, true);
     }
 
     private void MovePiece(int from, int to, int piece) { RemovePiece(from, piece); PutPiece(to, piece); }
@@ -112,7 +112,7 @@ public sealed class Position
     public void UnmakeMove()
     {
         if (Ply == 0) throw new InvalidOperationException("No move to unmake.");
-        var u = _undo[Ply - 1];
+        var u = _Undo[Ply - 1];
         if (u.Null) { SideToMove = u.Side; EnPassant = u.EnPassant; HalfmoveClock = u.Halfmove; FullmoveNumber = u.Fullmove; Key = u.Key; Ply--; PopHistory(); return; }
         int from = u.Move.From, to = u.Move.To, moving = Board[to];
         if (u.Move.Flag == 2) { int rookFrom = to > from ? (from / 8) * 8 + 7 : (from / 8) * 8; int rookTo = to > from ? to - 1 : to + 1; MovePiece(to, from, moving); MovePiece(rookTo, rookFrom, Board[rookTo]); }
@@ -123,20 +123,20 @@ public sealed class Position
     public void MakeNullMove()
     {
         if ((uint)Ply >= MaxPly) throw new InvalidOperationException("Position ply limit exceeded.");
-        _undo[Ply] = new Undo { Null = true, Side = SideToMove, Castling = Castling, EnPassant = EnPassant, Halfmove = HalfmoveClock, Fullmove = FullmoveNumber, Key = Key };
+        _Undo[Ply] = new Undo { Null = true, Side = SideToMove, Castling = Castling, EnPassant = EnPassant, Halfmove = HalfmoveClock, Fullmove = FullmoveNumber, Key = Key };
         if (EnPassant >= 0 && Zobrist.HasEp(this)) Key ^= Zobrist.EpValue(EnPassant);
         EnPassant = -1; SideToMove ^= 1; Key ^= Zobrist.SideValue; Ply++; PushHistory(Key, false);
     }
     public bool IsRepetition(int count = 3)
     {
         if (count < 2) throw new ArgumentOutOfRangeException(nameof(count));
-        if (_historyLength == 0 || !_realHistory[_historyLength - 1]) return false;
+        if (_HistoryLength == 0 || !_RealHistory[_HistoryLength - 1]) return false;
         int found = 1;
-        for (int i = _historyLength - 2; i >= 0 && _realHistory[i]; i--) if (_history[i] == Key && ++found >= count) return true;
+        for (int i = _HistoryLength - 2; i >= 0 && _RealHistory[i]; i--) if (_History[i] == Key && ++found >= count) return true;
         return false;
     }
-    private void PushHistory(ulong key, bool real) { _history[_historyLength++] = key; _realHistory[_historyLength - 1] = real; }
-    private void PopHistory() { if (_historyLength > 1) _historyLength--; }
+    private void PushHistory(ulong key, bool real) { _History[_HistoryLength++] = key; _RealHistory[_HistoryLength - 1] = real; }
+    private void PopHistory() { if (_HistoryLength > 1) _HistoryLength--; }
     public bool HasInsufficientMaterial()
     {
         if ((Pieces[1] | Pieces[7] | Pieces[4] | Pieces[10] | Pieces[5] | Pieces[11]) != 0) return false;

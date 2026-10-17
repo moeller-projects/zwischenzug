@@ -7,16 +7,16 @@ namespace Zwischenzug.Uci;
 /// <summary>Serial command mutations, concurrent search, and atomic protocol output.</summary>
 public sealed class UciHost(TextReader input, TextWriter output, ChessEngine engine, ILogger<UciHost> logger) : ISearchObserver
 {
-    private readonly object _outputGate = new();
-    private readonly UciOptions _options = new();
-    private CancellationTokenSource? _searchCancellation;
-    private Task? _searchTask;
-    private CancellationTokenSource? _lifetimeCancellation;
+    private readonly object _OutputGate = new();
+    private readonly UciOptions _Options = new();
+    private CancellationTokenSource? _SearchCancellation;
+    private Task? _SearchTask;
+    private CancellationTokenSource? _LifetimeCancellation;
 
     public async Task RunAsync(CancellationToken ct = default)
     {
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        _lifetimeCancellation = lifetime;
+        _LifetimeCancellation = lifetime;
         try
         {
             while (await input.ReadLineAsync(lifetime.Token).ConfigureAwait(false) is string line)
@@ -42,8 +42,8 @@ public sealed class UciHost(TextReader input, TextWriter output, ChessEngine eng
                         await SetOptionAsync(option).ConfigureAwait(false); break;
                     case UciCommand.Go go:
                         await StopAsync().ConfigureAwait(false);
-                        _searchCancellation = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                        _searchTask = SearchAndReportAsync(go.Limits, _searchCancellation.Token);
+                        _SearchCancellation = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                        _SearchTask = SearchAndReportAsync(go.Limits, _SearchCancellation.Token);
                         break;
                 }
             }
@@ -52,19 +52,19 @@ public sealed class UciHost(TextReader input, TextWriter output, ChessEngine eng
         finally
         {
             try { await StopAsync().ConfigureAwait(false); }
-            finally { _lifetimeCancellation = null; }
+            finally { _LifetimeCancellation = null; }
         }
     }
 
     private async Task SetOptionAsync(UciCommand.SetOption option)
     {
-        if (!_options.TrySet(option.Name, option.Value)) return;
+        if (!_Options.TrySet(option.Name, option.Value)) return;
         switch (option.Name.ToLowerInvariant())
         {
             case "hash":
-                await StopAsync().ConfigureAwait(false); engine.SetHashSize(_options.Hash); break;
+                await StopAsync().ConfigureAwait(false); engine.SetHashSize(_Options.Hash); break;
             case "move overhead":
-                await StopAsync().ConfigureAwait(false); engine.MoveOverhead = _options.MoveOverhead; break;
+                await StopAsync().ConfigureAwait(false); engine.MoveOverhead = _Options.MoveOverhead; break;
             case "threads": break; // Accepted, deliberately single-threaded.
         }
     }
@@ -87,19 +87,19 @@ public sealed class UciHost(TextReader input, TextWriter output, ChessEngine eng
             logger.LogError(exception, "Search failed");
             // Wake the pending input read and surface the original fault immediately.
             // Never fabricate a bestmove after an unexpected engine failure.
-            _lifetimeCancellation?.Cancel();
+            _LifetimeCancellation?.Cancel();
             throw;
         }
     }
 
     private async Task StopAsync()
     {
-        if (_searchTask is null) return;
-        _searchCancellation!.Cancel();
-        try { await _searchTask.ConfigureAwait(false); }
+        if (_SearchTask is null) return;
+        _SearchCancellation!.Cancel();
+        try { await _SearchTask.ConfigureAwait(false); }
         finally
         {
-            _searchTask = null; _searchCancellation.Dispose(); _searchCancellation = null;
+            _SearchTask = null; _SearchCancellation.Dispose(); _SearchCancellation = null;
         }
     }
 
@@ -107,6 +107,6 @@ public sealed class UciHost(TextReader input, TextWriter output, ChessEngine eng
 
     private void Write(string line)
     {
-        lock (_outputGate) { output.WriteLine(line); output.Flush(); }
+        lock (_OutputGate) { output.WriteLine(line); output.Flush(); }
     }
 }

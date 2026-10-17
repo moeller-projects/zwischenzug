@@ -81,20 +81,20 @@ public sealed class UciHostTests
 
     private sealed class ScriptReader : TextReader
     {
-        private readonly Channel<string> _lines = Channel.CreateUnbounded<string>();
-        public void Send(string line) => _lines.Writer.TryWrite(line);
-        public override async ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken) => await _lines.Reader.ReadAsync(cancellationToken);
+        private readonly Channel<string> _Lines = Channel.CreateUnbounded<string>();
+        public void Send(string line) => _Lines.Writer.TryWrite(line);
+        public override async ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken) => await _Lines.Reader.ReadAsync(cancellationToken);
     }
 
     private sealed class LineWriter : TextWriter
     {
-        private readonly Channel<string> _lines = Channel.CreateUnbounded<string>();
+        private readonly Channel<string> _Lines = Channel.CreateUnbounded<string>();
         public override System.Text.Encoding Encoding => System.Text.Encoding.UTF8;
-        public override void WriteLine(string? value) => _lines.Writer.TryWrite(value ?? "");
+        public override void WriteLine(string? value) => _Lines.Writer.TryWrite(value ?? "");
         public async Task<string> Until(string prefix)
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            while (true) { string line = await _lines.Reader.ReadAsync(timeout.Token); if (line.StartsWith(prefix, StringComparison.Ordinal)) return line; }
+            while (true) { string line = await _Lines.Reader.ReadAsync(timeout.Token); if (line.StartsWith(prefix, StringComparison.Ordinal)) return line; }
         }
     }
 }

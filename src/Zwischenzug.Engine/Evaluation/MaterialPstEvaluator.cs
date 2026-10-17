@@ -11,9 +11,9 @@ public interface IEvaluator
 /// <summary>Material plus tapered middle/end-game piece-square evaluation.</summary>
 public sealed class MaterialPstEvaluator : IEvaluator
 {
-    private readonly EvalParams _parameters;
+    private readonly EvalParams _Parameters;
 
-    public MaterialPstEvaluator(EvalParams? parameters = null) => _parameters = parameters ?? new EvalParams();
+    public MaterialPstEvaluator(EvalParams? parameters = null) => _Parameters = parameters ?? new EvalParams();
 
     public int Evaluate(in Position pos, int ply)
     {
@@ -26,19 +26,19 @@ public sealed class MaterialPstEvaluator : IEvaluator
             int type = piece > 6 ? piece - 6 : piece;
             int sign = piece > 6 ? -1 : 1;
             int count = BitOperations.PopCount(pieces);
-            int material = sign * count * _parameters.MaterialValues[type];
+            int material = sign * count * _Parameters.MaterialValues[type];
             middle += material; end += material;
-            phase += count * _parameters.PhaseWeights[type];
+            phase += count * _Parameters.PhaseWeights[type];
             while (pieces != 0)
             {
                 int square = BitOperations.TrailingZeroCount(pieces); pieces &= pieces - 1;
                 int tableSquare = sign > 0 ? square : square ^ 56;
                 int index = (type - 1) * 64 + tableSquare;
-                middle += sign * _parameters.MiddleGamePst[index];
-                end += sign * _parameters.EndGamePst[index];
+                middle += sign * _Parameters.MiddleGamePst[index];
+                end += sign * _Parameters.EndGamePst[index];
             }
         }
-        int maxPhase = _parameters.MaxPhase;
+        int maxPhase = _Parameters.MaxPhase;
         phase = Math.Min(phase, maxPhase);
         int score = (middle * phase + end * (maxPhase - phase)) / maxPhase;
         return pos.SideToMove == Position.White ? score : -score;

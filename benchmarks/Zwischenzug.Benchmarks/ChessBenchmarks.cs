@@ -13,15 +13,15 @@ namespace Zwischenzug.Benchmarks;
 [Config(typeof(ChessBenchmarkConfig))]
 public class ChessBenchmarks
 {
-    private Position[] _positions = [];
-    private Position _start = null!;
+    private Position[] _Positions = [];
+    private Position _Start = null!;
 
     [GlobalSetup]
     public void Setup()
     {
-        _positions = BenchmarkSuite.Positions.Select(Fen.Parse).ToArray();
-        _start = new Position();
-        Perft.Count(_start, 3);
+        _Positions = BenchmarkSuite.Positions.Select(Fen.Parse).ToArray();
+        _Start = new Position();
+        Perft.Count(_Start, 3);
     }
 
     [Benchmark]
@@ -29,12 +29,12 @@ public class ChessBenchmarks
     {
         Span<Move> moves = stackalloc Move[256];
         int count = 0;
-        foreach (var position in _positions) count += MoveGenerator.Generate(position, moves);
+        foreach (var position in _Positions) count += MoveGenerator.Generate(position, moves);
         return count;
     }
 
     [Benchmark]
-    public long PerftNodes() => Perft.Count(_start, 5);
+    public long PerftNodes() => Perft.Count(_Start, 5);
 
     // Includes cold engine/position setup, deliberately matching the CLI regression bench.
     [Benchmark]

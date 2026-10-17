@@ -167,35 +167,35 @@ public sealed class SessionTests
     }
     private sealed class Feed<T>
     {
-        private readonly Channel<(T Item, TaskCompletionSource Ack)> _items = Channel.CreateUnbounded<(T, TaskCompletionSource)>();
+        private readonly Channel<(T Item, TaskCompletionSource Ack)> _Items = Channel.CreateUnbounded<(T, TaskCompletionSource)>();
         public async Task SendAsync(T item, CancellationToken ct, bool waitForAck = true)
         {
             var ack = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            await _items.Writer.WriteAsync((item, ack), ct); if (waitForAck) await ack.Task.WaitAsync(ct);
+            await _Items.Writer.WriteAsync((item, ack), ct); if (waitForAck) await ack.Task.WaitAsync(ct);
         }
         public async IAsyncEnumerable<T> Read([EnumeratorCancellation] CancellationToken ct)
         {
-            await foreach (var (item, ack) in _items.Reader.ReadAllAsync(ct)) { yield return item; ack.TrySetResult(); }
+            await foreach (var (item, ack) in _Items.Reader.ReadAllAsync(ct)) { yield return item; ack.TrySetResult(); }
         }
     }
     private sealed class FakeClient : ILichessClient
     {
         public Feed<GameEvent> Games { get; } = new(); public Feed<BotEvent> Events { get; } = new();
         public Channel<string> Moves { get; } = Channel.CreateUnbounded<string>();
-        private readonly Channel<string> _accepted = Channel.CreateUnbounded<string>();
-        private readonly Channel<string> _declined = Channel.CreateUnbounded<string>();
-        private readonly List<string> _acceptedList = [];
-        private readonly List<string> _declinedList = [];
-        private readonly object _gate = new();
-        public string[] Accepted { get { lock (_gate) return [.. _acceptedList]; } }
-        public string[] Declined { get { lock (_gate) return [.. _declinedList]; } }
+        private readonly Channel<string> _Accepted = Channel.CreateUnbounded<string>();
+        private readonly Channel<string> _Declined = Channel.CreateUnbounded<string>();
+        private readonly List<string> _AcceptedList = [];
+        private readonly List<string> _DeclinedList = [];
+        private readonly object _Gate = new();
+        public string[] Accepted { get { lock (_Gate) return [.. _AcceptedList]; } }
+        public string[] Declined { get { lock (_Gate) return [.. _DeclinedList]; } }
         public int MoveCount;
         public int GameStreams;
         public Func<string, Task>? Submit { get; set; }
         public Func<string, Task>? Accept { get; set; }
         public TaskCompletionSource Reopened { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public async Task<string> NextAcceptedAsync(CancellationToken ct) => await _accepted.Reader.ReadAsync(ct);
-        public async Task<string> NextDeclinedAsync(CancellationToken ct) => await _declined.Reader.ReadAsync(ct);
+        public async Task<string> NextAcceptedAsync(CancellationToken ct) => await _Accepted.Reader.ReadAsync(ct);
+        public async Task<string> NextDeclinedAsync(CancellationToken ct) => await _Declined.Reader.ReadAsync(ct);
         public IAsyncEnumerable<BotEvent> StreamEventsAsync(CancellationToken ct = default) => Events.Read(ct);
         public IAsyncEnumerable<GameEvent> StreamGameAsync(string id, CancellationToken ct = default)
         {
@@ -204,14 +204,14 @@ public sealed class SessionTests
         }
         public Task AcceptChallengeAsync(string id, CancellationToken ct = default)
         {
-            lock (_gate) _acceptedList.Add(id);
-            _accepted.Writer.TryWrite(id);
+            lock (_Gate) _AcceptedList.Add(id);
+            _Accepted.Writer.TryWrite(id);
             return Accept?.Invoke(id) ?? Task.CompletedTask;
         }
         public Task DeclineChallengeAsync(string id, string reason, CancellationToken ct = default)
         {
-            lock (_gate) _declinedList.Add(id + ":" + reason);
-            _declined.Writer.TryWrite(id + ":" + reason);
+            lock (_Gate) _DeclinedList.Add(id + ":" + reason);
+            _Declined.Writer.TryWrite(id + ":" + reason);
             return Task.CompletedTask;
         }
         public Task MakeMoveAsync(string id, string move, CancellationToken ct = default) { Interlocked.Increment(ref MoveCount); Moves.Writer.TryWrite(move); return Submit?.Invoke(move) ?? Task.CompletedTask; }
