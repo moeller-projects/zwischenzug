@@ -44,10 +44,27 @@ Milestone identifiers are new Phase 2 continuation IDs; the historical M0–M5 i
 
 ## Risks and unresolved decisions
 
-- **U1 NNUE stack:** trainer/version, feature set, record format, licensing, training hardware and storage/throughput remain unresolved; owner: project owner. Resolve in a bounded feasibility spike before P2-3 implementation.
+- **U1 NNUE stack:** Bullet is the selected trainer; Chess768 is the recommended v1 feature set. The pinned trainer contract is documented below. Training hardware, dataset provenance/storage, and authorization for a controlled training run remain unresolved; owner: project owner. Resolve before generating large datasets or claiming a trained NNUE deliverable.
 - **U2 Tablebases:** Fathom/Syzygy library, distribution/licensing, supported platforms and 50-move/DTZ semantics remain unresolved; owner: project owner. Keep optional and do not claim support until decided and tested.
 - **U3 External gates:** CCRL/CEGT/OpenBench/Lichess eligibility, accounts, hardware, and authorization are prerequisites, not assumed work products.
 - **U4 Original Expanded Index:** absent from this repository; original citations and calibration claims were not independently checked.
+
+### P2-3 feasibility decision
+
+Prefer a **Bullet `Chess768` first network** over the draft's HalfKA_hm architecture for the initial implementation. This is a deliberate scope choice: Bullet documents the exact 768-feature mapping, dual perspectives, quantized checkpoint format, and simple `(768 -> 128)x2 -> 1` inference example. It removes king-bucket feature refresh from the first correctness-critical path. Tradeoff: no king-conditioned features; treat playing strength as unproven.
+
+Proposed frozen v1 contract, pending implementation:
+
+- Sparse input: Bullet Chess768 mapping, 768 features, at most 32 active pieces; same-perspective features use piece type and square; non-side-to-move perspective vertically mirrors square with `square ^ 56`.
+- Shared feature affine transform to 128 int16 accumulators for each perspective; SCReLU both accumulators, concatenate, one output.
+- Quantization/scaling: QA=255, QB=64, output scale=400; int64 scalar accumulation is the reference to avoid intermediate overflow. No architecture-specific backend until exact parity with scalar.
+- Model file: Bullet `quantised.bin` from a named `SavedFormat`, with fixed versioned header/length/endian/layout defined by this project before accepting any external model. Bullet's raw output has little-endian, column-major tensor weights and padding to 64 bytes; do not infer compatibility from file length alone.
+- Initial data interchange: Bullet's documented FEN/score/result text format, score and result White-relative. Use a dedicated converter/validator and a tiny dry dataset before any large-scale generation or training.
+- Inference availability: no trained model exists in this repository. HCE remains the operational default until a model is trained, loaded, parity-checked, and separately strength-tested.
+
+Primary references (checked 2026-10-17): [Bullet simple network example](https://github.com/jw1912/bullet/blob/869e30934402d912609d3ee2baa9696a12e1f783/examples/simple.rs), [Chess768 feature mapping](https://github.com/jw1912/bullet/blob/869e30934402d912609d3ee2baa9696a12e1f783/crates/bullet_lib/src/game/inputs/chess768.rs), [saved-network format](https://github.com/jw1912/bullet/blob/869e30934402d912609d3ee2baa9696a12e1f783/docs/4-saved-networks.md), and [training data](https://github.com/jw1912/bullet/blob/869e30934402d912609d3ee2baa9696a12e1f783/docs/3-data.md). Bullet is MIT-licensed per its [repository metadata](https://api.github.com/repos/jw1912/bullet). The pinned revision is `869e30934402d912609d3ee2baa9696a12e1f783`.
+
+The source-format review is complete. The remaining gate is a representative model exported by this pinned trainer and a controlled data/training run; training/data generation is not authorized. Do not create random placeholder production weights or claim a completed NNUE evaluator without a real model.
 
 ## Current execution status
 
@@ -55,4 +72,4 @@ Milestone identifiers are new Phase 2 continuation IDs; the historical M0–M5 i
 - P2-1 search-core audit completed: existing mate-score normalization, halfmove TT context, draw precedence, cancellation, and PV coverage are documented in `docs/implementation-ledger.md`.
 - P2-2 selectivity experiments: reverse futility pruning and shallow razoring both violated existing exact mate-in-three regressions. Both were rejected and removed; no search tuning is currently accepted.
 - Local fastchess v1.8.2-alpha was installed under ignored `artifacts/local-tools/` after the user authorized installation and local matches. Do not run SPRT for candidates that fail correctness tests.
-- Next: P2-3 bounded NNUE feasibility spike. Resolve trainer/format/features/training-resource questions before committing to an implementation architecture. Restore, build, and test remain authorized; publishing, NNUE training, and external service actions remain separate gates.
+- P2-3 source/format spike: Bullet `Chess768` v1 is selected and pinned above. Existing HCE evaluator injection is the replacement seam; there is no network model or Rust toolchain in the workspace. The next work requires approval to install/build the pinned trainer, generate a bounded local dataset and train a tiny compatibility model—or the project owner must supply an equivalent model artifact. Restore/build/test authorization does not include NNUE data generation/training. Native AOT, publishing, and external service actions remain separate gates.
