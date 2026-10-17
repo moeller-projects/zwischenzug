@@ -49,6 +49,10 @@ Milestone identifiers are new Phase 2 continuation IDs; the historical M0–M5 i
 - **U3 External gates:** CCRL/CEGT/OpenBench/Lichess eligibility, accounts, hardware, and authorization are prerequisites, not assumed work products.
 - **U4 Original Expanded Index:** absent from this repository; original citations and calibration claims were not independently checked.
 
-## Current start point
+## Current execution status
 
-Begin at P2-0, not the draft's greenfield scaffold. First inspect existing perft fixtures and tests; then implement only the highest-value missing correctness coverage. The user-authorized restore/build/test operations permit normal local validation. No perft performance benchmark, fastchess/SPRT, publish, or deployment command is implied.
+- P2-0 baseline closure completed: Kiwipete perft coverage now reaches d5; Release solution tests passed 106/106 and CLI `perft 5` returned 4,865,609.
+- P2-1 search-core audit completed: existing mate-score normalization, halfmove TT context, draw precedence, cancellation, and PV coverage are documented in `docs/implementation-ledger.md`.
+- P2-2 selectivity experiments: reverse futility pruning and shallow razoring both violated existing exact mate-in-three regressions. Both were rejected and removed; no search tuning is currently accepted.
+- Local fastchess v1.8.2-alpha was installed under ignored `artifacts/local-tools/` after the user authorized installation and local matches. Do not run SPRT for candidates that fail correctness tests.
+- Next: P2-3 bounded NNUE feasibility spike. Resolve trainer/format/features/training-resource questions before committing to an implementation architecture. Restore, build, and test remain authorized; publishing, NNUE training, and external service actions remain separate gates.
