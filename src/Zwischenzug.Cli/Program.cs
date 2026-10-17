@@ -15,7 +15,11 @@ builder.Logging.ClearProviders();
 builder.Logging.AddSimpleConsole();
 builder.Services.Configure<Microsoft.Extensions.Logging.Console.ConsoleLoggerOptions>(options =>
     options.LogToStandardErrorThreshold = LogLevel.Trace);
-builder.Services.AddSingleton<Engine>();
+builder.Services.AddSingleton<Engine>(_ =>
+{
+    string? modelPath = builder.Configuration["Nnue:ModelPath"];
+    return modelPath is null ? new Engine() : new Engine(evaluator: new NnueEvaluator(modelPath));
+});
 builder.Services.AddSingleton(sp => new UciHost(
     Console.In,
     Console.Out,
@@ -73,11 +77,26 @@ lichess.SetAction(async (_, ct) =>
     await host.Services.GetRequiredService<BotRunner>().RunAsync(ct).ConfigureAwait(false);
 });
 
+var nnue = new Command("nnue", "Package a trained NNUE model.");
+var pack = new Command("pack", "Wrap a Bullet Chess768 quantised network in the versioned model format.");
+var bulletModelArgument = new Argument<string>("bullet-model");
+var outputModelArgument = new Argument<string>("output-model");
+pack.Arguments.Add(bulletModelArgument);
+pack.Arguments.Add(outputModelArgument);
+pack.SetAction(parseResult =>
+{
+    NnueEvaluator.PackBulletQuantizedNetwork(
+        parseResult.GetValue(bulletModelArgument)!,
+        parseResult.GetValue(outputModelArgument)!);
+});
+nnue.Subcommands.Add(pack);
+
 
 var root = new RootCommand("Zwischenzug chess engine");
 root.Subcommands.Add(uci);
 root.Subcommands.Add(perft);
 root.Subcommands.Add(bench);
+root.Subcommands.Add(nnue);
 root.Subcommands.Add(lichess);
 root.SetAction(async (_, cancellationToken) => await host.Services.GetRequiredService<UciHost>().RunAsync(cancellationToken));
 

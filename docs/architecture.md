@@ -28,6 +28,13 @@ Adapters reference Engine only; Core types are available through the transitive 
 
 Challenge IDs become game IDs in Lichess: [Challenge.gameId](https://github.com/lichess-org/lila/blob/master/modules/challenge/src/main/Challenge.scala) converts the challenge ID and [ChallengeJoiner](https://github.com/lichess-org/lila/blob/master/modules/challenge/src/main/ChallengeJoiner.scala) creates the game with it. Reservations are released by exact identity, never by arbitrary insertion order. Event models support both documented gameId and id fields.
 
+## Evaluation models
+
+Material/PST evaluation remains the default. Set `Nnue__ModelPath` to a packaged model path to select the Chess768 evaluator at CLI startup; AVX2 feature updates are used when supported, with a portable scalar fallback. A configured but invalid model fails startup instead of falling back silently. Create the package from a compatible Bullet `quantised.bin` with `dotnet run --project src/Zwischenzug.Cli -c Release -- nnue pack <bullet-model> <output-model>`.
+
+The project model format has a 72-byte little-endian header (`ZNNUE768`, version 1, fixed Chess768/128-hidden quantization contract, payload length, SHA-256) followed by the pinned Bullet quantized layout. The evaluator uses side-to-move perspective features and per-search-ply accumulators updated from board-square differences. Each evaluator instance is mutable and must not be shared by concurrent searches. The output path uses scalar 64-bit accumulation; no trained model is bundled, and the bounded trainer smoke is not a strength result.
+
+
 ## Verification and measurement
 
 MSTest runs on Microsoft.Testing.Platform. Core coverage uses the six CPW perft positions, state/key restoration and special moves. Engine coverage includes twenty exact mate-distance positions, draws, bounded time/nodes, deterministic repeated searches, TT replacement and SEE pins. Adapter coverage exercises transcript responsiveness and representative NDJSON through fake HTTP streams, including dropped connections, 429 and ambiguous move reconciliation.
@@ -36,6 +43,6 @@ The CLI benchmark clears state per position over a committed 25-position suite. 
 
 ## Limits and decisions
 
-Position supports 1,024 accumulated plies; search supports 94. Threads is accepted but ignored; pondering, Chess960, books, tablebases and NNUE are out of scope. IEvaluator is the replacement seam for future evaluation implementations. Fixed TT layout and the static Attacks facade isolate future SMP and sliding-attack changes.
+Position supports 1,024 accumulated plies; search supports 94. Threads is accepted but ignored; pondering, Chess960, books and tablebases remain out of scope. IEvaluator supports alternate evaluators; HCE remains default unless a versioned NNUE model path is configured. Fixed TT layout and the static Attacks facade isolate future SMP and sliding-attack changes.
 
 See [ADR 0001](adr/0001-position-and-move-representation.md), [ADR 0002](adr/0002-search-and-pruning-strategy.md), [ADR 0003](adr/0003-evaluation-architecture.md) and [ADR 0004](adr/0004-packaging-and-verification-boundaries.md). Detailed observed evidence and unrun checks live in [the implementation ledger](implementation-ledger.md).
