@@ -13,6 +13,7 @@ public sealed class CoreTests
         for (int i = 0; i < start.Length; i++) yield return [Fen.StartPosition, i + 1, start[i]];
         const string kiwi = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -";
         yield return [kiwi, 1, 48L]; yield return [kiwi, 2, 2039L]; yield return [kiwi, 3, 97862L];
+        yield return [kiwi, 4, 4085603L]; yield return [kiwi, 5, 193690690L];
         string[] fens = ["8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1", "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1", "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8", "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10"];
         long[][] counts = [[14, 191, 2812, 43238], [6, 264, 9467, 422333], [44, 1486, 62379, 2103487], [46, 2079, 89890, 3894594]];
         for (int p = 0; p < fens.Length; p++) for (int d = 0; d < 4; d++) yield return [fens[p], d + 1, counts[p][d]];
@@ -32,7 +33,7 @@ public sealed class CoreTests
         {
             var p = Fen.Parse(group.Key);
             Assert.AreEqual(Fen.Format(p), Fen.Format(Fen.Parse(Fen.Format(p))));
-            VerifyTree(p, group.Max(row => (int)row[1]));
+            VerifyTree(p, Math.Min(4, group.Max(row => (int)row[1])));
         }
     }
 
