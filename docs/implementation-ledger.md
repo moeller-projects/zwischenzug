@@ -44,3 +44,10 @@ User chose in-place implementation on feature branch feat/chess-engine. Original
 - Final review passes:
   - Delivery review: resolved P2 omission by recording M5 evidence, publish outcome and explicit boundaries in the ledger; deleted fastchess local state config.json and ignored it.
   - Application review: identified P1 where awaiting ChallengeAsync in the event loop allowed rate-limited/slow challenge requests to block gameStart event processing. Corrected in BotRunner by making pending capacity reservation synchronous and dispatching the HTTP challenge task to the background while the event stream continues reading. Two new regression tests verify that delayed challenge responses cannot block an accepted game start, and that fatal background challenge authentication errors surface to the runner task. All 20 Lichess tests and all 104 solution tests pass. External subagent limits prevented a third subagent dispatch; the code change and regression results were verified directly.
+## Phase 2 execution
+
+- Plan: `docs/phase-2-implementation-plan.md`; source of truth for this continuation because no OpenSpec root is initialized.
+- Workspace: user chose the current checkout; feature base is `feat/chess-engine`. An untracked `Zwischenzug.sln.DotSettings.user` was present and is user-owned; never stage or modify it.
+- Verification authorization: restore, build, and test authorized for this implementation. Publish, image builds, benchmarks, training, strength matches, live Lichess, and pushes are not authorized by that grant.
+- Stack support: `gh stack view --json` reported `feat/chess-engine` is not in a stack. Proceed with local dependent branches; do not submit PRs or push.
+- Plan rulings: preserve existing engine and project structure; change original proposed M0–M3 into gap-closure and extension milestones; pseudo-legal perft leaves must test legality; first NNUE datagen uses standard chess; document unvalidated strength expectations as targets only.
