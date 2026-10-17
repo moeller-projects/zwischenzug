@@ -29,5 +29,5 @@ dotnet run --project benchmarks/Zwischenzug.Benchmarks -c Release --no-build -- 
 - Challenge/game identity is exact; keep pending reservations keyed by challenge ID.
 - Benchmark depth-five signature: `BenchmarkSuite.ExpectedDefaultNodes`. Update code, regression assertion and README intentionally when search semantics change.
 - Exhaustive make/unmake restoration covers the deepest accepted perft trees, including incremental-key recomputation.
-- Search depth is bounded at 94 plies; Position history at 1,024. Threads is accepted but ignored.
+- Search depth is bounded at 94 plies; Position history at 1,024. UCI Threads supports 1–128 Lazy SMP workers with independent Searcher/Position/evaluator state and stripe-locked TT bucket access. Clear, resize, and generation changes only when workers are idle. Ponder time starts at ponderhit.
 - Live Lichess/account upgrade, Native AOT publish and Docker verification require separate prerequisites/authorization. Never claim them from unit tests.

@@ -1,8 +1,8 @@
 # Zwischenzug
 
-Single-threaded .NET 10 chess engine, with UCI and Lichess Bot API adapters.
+A .NET 10 chess engine with configurable Lazy SMP, UCI, and Lichess Bot API adapters.
 
-See [AGENTS.md](AGENTS.md) for build and verification commands. Implementation follows M0–M5 of the supplied plan; progress and evidence live in [docs/implementation-ledger.md](docs/implementation-ledger.md).
+The initial implementation followed the delivered M0–M5 plan. This Phase 2 continuation is tracked in [docs/phase-2-implementation-plan.md](docs/phase-2-implementation-plan.md); implementation evidence lives in [docs/implementation-ledger.md](docs/implementation-ledger.md).
 
 ## Command-line usage
 
@@ -87,6 +87,8 @@ dotnet run --project benchmarks/Zwischenzug.Benchmarks -c Release --no-build -- 
 ```
 
 The benchmark reports legal-move generation throughput, perft/search nodes per second, allocation and TT hit percentage over the same fixed bench suite. Search measurements include cold engine and position setup, not just recursive node work. Movegen and perft allocate no managed memory in the measured operation.
+
+The figures below are historical P2-3 measurements, before P2-4 added striped TT synchronization and shared search clocks. They were not rerun for P2-4 and are not current search-throughput or thread-scaling evidence. The one-thread node signature remains covered separately by the regression suite.
 
 Observed ShortRun on an Intel i9-13900H, .NET 10.0.13 (three measurement iterations; not a long statistical performance study):
 

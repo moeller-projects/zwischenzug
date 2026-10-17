@@ -1,6 +1,6 @@
 # Architecture
 
-Zwischenzug is a single-threaded chess engine with independent UCI and Lichess adapters. The CLI is the composition root. All projects target .NET 10/C# 14, invariant globalization and nullable reference types; warnings are errors.
+Zwischenzug is a .NET 10 chess engine with independent UCI and Lichess adapters. The CLI is the composition root. UCI searches can use configurable Lazy SMP; all projects target C# 14, invariant globalization and nullable reference types, with warnings treated as errors.
 
 ## Dependency flow
 
@@ -20,8 +20,8 @@ Adapters reference Engine only; Core types are available through the transitive 
 ## State ownership
 
 - **Core**: packed moves, mailbox/bitboards, legal generation, FEN, normalized repetition keys, fixed undo/history storage and perft.
-- **Engine**: tapered evaluation, legal static exchange evaluation, four-way TT and deterministic iterative PVS search. The facade owns the position and rejects mutations during search. Search runs on a dedicated long-running worker.
-- **UCI**: pure typed parser, invariant formatter, atomic output, asynchronous search completion. Command mutations cancel and await the old search first; ready remains responsive. Stdout contains protocol lines only. Fatal search faults wake input and terminate visibly rather than inventing a move.
+- **Engine**: tapered evaluation, legal static exchange evaluation, four-way transposition table and iterative PVS search. Lazy SMP creates an independent `Searcher` and history-preserving `Position` per worker; bucket reads/writes on the shared TT use stripe locks. The facade owns the root position and rejects state mutations until all workers are joined.
+- **UCI**: pure typed parser, invariant formatter, atomic output and asynchronous search completion. `Threads` controls Lazy SMP; `MultiPV` emits distinct root lines; `UCI_ShowWDL` opts into Stockfish-model estimates; `Ponder` plus `go ponder`/`ponderhit` enables ponder clock transitions. Command mutations cancel and await the old search first; ready remains responsive. Stdout contains protocol lines only. Fatal search faults wake input and terminate visibly rather than inventing a move.
 - **Lichess transport**: typed HttpClient, per-request bearer header, generated JSON metadata, streaming NDJSON and bounded reconnect. Bodies and headers never enter logs; redirects are disabled by the composition root.
 - **Lichess bot**: accepted-challenge reservations plus bounded per-game sessions. Each game owns its engine. Snapshots retain initial FEN and identity; every actionable state rebuilds position from the complete authoritative move prefix. Superseded searches are canceled/awaited before a new position is installed. Ambiguous move delivery refreshes the snapshot before any retry.
 - **CLI**: Host configuration, DI, stderr logging and System.CommandLine commands. Manual typed configuration avoids reflection-based options binding. Tokens come from configuration/environment/user-secrets, never command arguments.
@@ -37,12 +37,12 @@ The project model format has a 72-byte little-endian header (`ZNNUE768`, version
 
 ## Verification and measurement
 
-MSTest runs on Microsoft.Testing.Platform. Core coverage uses the six CPW perft positions, state/key restoration and special moves. Engine coverage includes twenty exact mate-distance positions, draws, bounded time/nodes, deterministic repeated searches, TT replacement and SEE pins. Adapter coverage exercises transcript responsiveness and representative NDJSON through fake HTTP streams, including dropped connections, 429 and ambiguous move reconciliation.
+MSTest runs on Microsoft.Testing.Platform. Core coverage uses the six CPW perft positions, state/key restoration and special moves. Engine coverage includes twenty exact mate-distance positions, draws, bounded time/nodes, deterministic repeated searches, TT replacement and SEE pins, threefold history in parallel workers, cancellation/join, MultiPV legality, and ponder timing. UCI transcript tests cover effective Threads, MultiPV/WDL reports, ponderhit release, and fatal-search handling. Lichess coverage exercises representative NDJSON through fake HTTP streams, including dropped connections, 429 and ambiguous move reconciliation.
 
 The CLI benchmark clears state per position over a committed 25-position suite. Its default-depth node count is a behavioral regression signature, not a strength rating. BenchmarkDotNet reports move-generation throughput, perft/search NPS, allocations and measured TT hit percentage. A ten-game external match checks protocol safety; separate SPRT runs test strength changes.
 
 ## Limits and decisions
 
-Position supports 1,024 accumulated plies; search supports 94. Threads is accepted but ignored; pondering, Chess960, books and tablebases remain out of scope. IEvaluator supports alternate evaluators; HCE remains default unless a versioned NNUE model path is configured. Fixed TT layout and the static Attacks facade isolate future SMP and sliding-attack changes.
+Position supports 1,024 accumulated plies; search supports 94. UCI `Threads` supports 1–128 workers with independent search/evaluator state and a stripe-locked shared TT. Pondering is supported when enabled; WDL output uses Stockfish's empirical model and is not calibrated to Zwischenzug. Chess960 and opening books remain out of scope; tablebases remain deferred pending the licensing, portability and 50-move/DTZ decision. HCE remains default unless a versioned NNUE model path is configured.
 
 See [ADR 0001](adr/0001-position-and-move-representation.md), [ADR 0002](adr/0002-search-and-pruning-strategy.md), [ADR 0003](adr/0003-evaluation-architecture.md) and [ADR 0004](adr/0004-packaging-and-verification-boundaries.md). Detailed observed evidence and unrun checks live in [the implementation ledger](implementation-ledger.md).
