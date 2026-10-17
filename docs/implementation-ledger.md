@@ -96,3 +96,4 @@ User chose in-place implementation on feature branch `feat/chess-engine`. Origin
 - Each published output returned `nodes 4865609` for `perft 5` and completed a UCI/`isready` handshake with `uciok` and `readyok`. The generated artifacts remain under ignored `artifacts/publish/p2-5/`.
 - Only Windows x64 (`win-x64`) is verified. No other RID or AOT container is claimed. Docker image/runtime, hosted CI, external rating submission, deployment, live Lichess, and standalone performance benchmarking remain unrun/deferred.
 - P2-5 branch `phase2/m5-release` stacks on `phase2/m4-smp`. Earlier commits: `08db501 docs(release): update SMP architecture and evidence boundaries`; `0eaf6b4 docs(release): record deferred verification gates`; `4402a15 docs: record release deferral commit`.
+- Current P2-5 evidence documentation commit: `de3b0c4 docs(release): record win-x64 publish evidence`.
