@@ -61,11 +61,12 @@ public static class UciCommandParser
     private static UciCommand? ParseGo(string[] tokens)
     {
         int depth = 64; long nodes = long.MaxValue; int? movetime = null, wtime = null, btime = null;
-        int winc = 0, binc = 0, movestogo = 30; bool infinite = false, hasDepth = false;
+        int winc = 0, binc = 0, movestogo = 30; bool infinite = false, ponder = false, hasDepth = false;
         for (int i = 1; i < tokens.Length; i++)
         {
             string key = tokens[i].ToLowerInvariant();
             if (key == "infinite") { infinite = true; continue; }
+            if (key == "ponder") { ponder = true; continue; }
             if (key is not ("depth" or "nodes" or "movetime" or "wtime" or "btime" or "winc" or "binc" or "movestogo") || ++i >= tokens.Length) return null;
             string value = tokens[i];
             switch (key)
@@ -80,7 +81,7 @@ public static class UciCommandParser
                 case "movestogo": if (!TryPositive(value, out movestogo)) return null; break;
             }
         }
-        return new UciCommand.Go(new SearchLimits { Depth = infinite && !hasDepth ? int.MaxValue : depth, Nodes = nodes, MoveTime = movetime, WhiteTime = wtime, BlackTime = btime, WhiteIncrement = winc, BlackIncrement = binc, MovesToGo = movestogo, Infinite = infinite });
+        return new UciCommand.Go(new SearchLimits { Depth = (infinite || ponder) && !hasDepth ? int.MaxValue : depth, Nodes = nodes, MoveTime = movetime, WhiteTime = wtime, BlackTime = btime, WhiteIncrement = winc, BlackIncrement = binc, MovesToGo = movestogo, Infinite = infinite, Ponder = ponder });
     }
 
     private static bool TryPositive(string text, out int value)

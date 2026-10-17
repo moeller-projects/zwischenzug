@@ -11,6 +11,7 @@ public sealed class UciHost(TextReader input, TextWriter output, ChessEngine eng
     private readonly UciOptions _Options = new();
     private CancellationTokenSource? _SearchCancellation;
     private Task? _SearchTask;
+    private TaskCompletionSource? _PonderRelease;
     private CancellationTokenSource? _LifetimeCancellation;
 
     public async Task RunAsync(CancellationToken ct = default)
@@ -30,7 +31,10 @@ public sealed class UciHost(TextReader input, TextWriter output, ChessEngine eng
                     case UciCommand.IsReady: Write("readyok"); break;
                     case UciCommand.Quit: return;
                     case UciCommand.Stop: await StopAsync().ConfigureAwait(false); break;
-                    case UciCommand.PonderHit: break;
+                    case UciCommand.PonderHit:
+                        engine.PonderHit();
+                        _PonderRelease?.TrySetResult();
+                        break;
                     case UciCommand.NewGame:
                         await StopAsync().ConfigureAwait(false); engine.NewGame(); break;
                     case UciCommand.Position position:
@@ -43,7 +47,15 @@ public sealed class UciHost(TextReader input, TextWriter output, ChessEngine eng
                     case UciCommand.Go go:
                         await StopAsync().ConfigureAwait(false);
                         _SearchCancellation = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                        _SearchTask = SearchAndReportAsync(go.Limits, _SearchCancellation.Token);
+                        SearchLimits limits = go.Limits with
+                        {
+                            Threads = _Options.Threads,
+                            MultiPv = _Options.MultiPv,
+                            Ponder = go.Limits.Ponder && _Options.Ponder
+                        };
+                        if (go.Limits.Ponder && !limits.Ponder && limits.Depth == int.MaxValue) limits = limits with { Depth = 64 };
+                        _PonderRelease = limits.Ponder ? new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously) : null;
+                        _SearchTask = SearchAndReportAsync(limits, _SearchCancellation.Token);
                         break;
                 }
             }
@@ -65,7 +77,11 @@ public sealed class UciHost(TextReader input, TextWriter output, ChessEngine eng
                 await StopAsync().ConfigureAwait(false); engine.SetHashSize(_Options.Hash); break;
             case "move overhead":
                 await StopAsync().ConfigureAwait(false); engine.MoveOverhead = _Options.MoveOverhead; break;
-            case "threads": break; // Accepted, deliberately single-threaded.
+            case "threads":
+            case "multipv":
+            case "uci_showwdl":
+            case "ponder":
+                await StopAsync().ConfigureAwait(false); break;
         }
     }
 
@@ -74,7 +90,12 @@ public sealed class UciHost(TextReader input, TextWriter output, ChessEngine eng
         try
         {
             SearchResult result = await engine.SearchAsync(limits, this, ct).ConfigureAwait(false);
-            // UCI infinite must not emit bestmove until stop, even after a forced mate is found.
+            // UCI infinite and ponder searches withhold bestmove until the matching release command.
+            if (_PonderRelease is not null && !ct.IsCancellationRequested)
+            {
+                try { await _PonderRelease.Task.WaitAsync(ct).ConfigureAwait(false); }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+            }
             if (limits.Infinite && !ct.IsCancellationRequested)
             {
                 try { await Task.Delay(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false); }
@@ -103,7 +124,19 @@ public sealed class UciHost(TextReader input, TextWriter output, ChessEngine eng
         }
     }
 
-    public void OnIteration(SearchResult result) => Write(UciResponseFormatter.Info(result));
+    public void OnIteration(SearchResult result)
+    {
+        if (result.MultiPvLines.Length > 1)
+        {
+            for (int i = 0; i < result.MultiPvLines.Length; i++)
+            {
+                PrincipalVariation line = result.MultiPvLines[i];
+                Write(UciResponseFormatter.Info(result with { Score = line.Score, Pv = line.Moves }, _Options.ShowWdl, i + 1));
+            }
+            return;
+        }
+        Write(UciResponseFormatter.Info(result, _Options.ShowWdl));
+    }
 
     private void Write(string line)
     {
