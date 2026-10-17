@@ -41,6 +41,29 @@ public sealed class Position
 
     internal void InitializeHistory() { Ply = 0; _HistoryLength = 1; _History[0] = Key; _RealHistory[0] = true; }
 
+    internal Position CloneForSearch()
+    {
+        var clone = new Position(true)
+        {
+            Occupied = Occupied,
+            SideToMove = SideToMove,
+            Castling = Castling,
+            EnPassant = EnPassant,
+            HalfmoveClock = HalfmoveClock,
+            FullmoveNumber = FullmoveNumber,
+            Key = Key,
+            Ply = Ply
+        };
+        Array.Copy(Board, clone.Board, Board.Length);
+        Array.Copy(Pieces, clone.Pieces, Pieces.Length);
+        Array.Copy(Colors, clone.Colors, Colors.Length);
+        Array.Copy(_Undo, clone._Undo, _Undo.Length);
+        Array.Copy(_History, clone._History, _History.Length);
+        Array.Copy(_RealHistory, clone._RealHistory, _RealHistory.Length);
+        clone._HistoryLength = _HistoryLength;
+        return clone;
+    }
+
     internal void PutPiece(int square, int piece)
     {
         if ((uint)square >= 64 || (uint)piece >= 13) throw new ArgumentOutOfRangeException();

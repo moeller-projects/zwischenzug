@@ -3,7 +3,7 @@ using System.Numerics;
 using Zwischenzug.Core;
 namespace Zwischenzug.Engine;
 
-internal sealed class Searcher(TranspositionTable table, IEvaluator evaluator)
+internal sealed class Searcher(TranspositionTable table, IEvaluator evaluator, SearchNodeCounter? nodeCounter = null)
 {
     private const int Mate = 30000, Infinity = 32000, MaxPly = 96;
     private readonly Move[,] _Killers = new Move[MaxPly, 2];
@@ -13,17 +13,21 @@ internal sealed class Searcher(TranspositionTable table, IEvaluator evaluator)
     private readonly Stopwatch _Watch = new();
     private SearchLimits _Limits = new();
     private CancellationToken _Ct;
+    private SearchClock? _Clock;
     private long _Budget, _Nodes, _Qnodes, _KillerUpdates, _HistoryUpdates, _TtFirst;
-    private int _Iteration, _Seldepth;
+    private int _Iteration, _Seldepth, _MaterialUnits;
     private bool _Aborted;
+    private Move[]? _RootPvMoves;
+    private int[]? _RootPvLengths;
 
-    public SearchResult Search(Position p, SearchLimits limits, int overhead, ISearchObserver? observer, CancellationToken ct)
+    public SearchResult Search(Position p, SearchLimits limits, int overhead, ISearchObserver? observer, CancellationToken ct, SearchClock? clock = null)
     {
-        _Limits = limits; _Ct = ct; _Budget = TimeManager.BudgetMilliseconds(limits, p.SideToMove, overhead);
+        _Limits = limits; _Ct = ct; _Clock = clock; _Budget = TimeManager.BudgetMilliseconds(limits, p.SideToMove, overhead);
+        _MaterialUnits = MaterialUnits(p);
         _Nodes = _Qnodes = _KillerUpdates = _HistoryUpdates = _TtFirst = 0;
         _Seldepth = 0; _Aborted = false;
         Array.Clear(_Killers); Array.Clear(_History); Array.Clear(_PvLength);
-        table.NewGeneration(); _Watch.Restart();
+        _Watch.Restart();
         Span<Move> legal = stackalloc Move[256]; int count = MoveGenerator.Generate(p, legal);
         if (count == 0) return Snapshot(default, Attacks.InCheck(p, p.SideToMove) ? -Mate : 0, 0, []);
         Move best = legal[0]; int score = 0;
@@ -31,31 +35,115 @@ internal sealed class Searcher(TranspositionTable table, IEvaluator evaluator)
         int maxDepth = Math.Clamp(limits.Depth, 1, MaxPly - 2);
         for (_Iteration = 1; _Iteration <= maxDepth; _Iteration++)
         {
-            int alpha = _Iteration > 1 ? Math.Max(-Infinity, score - 50) : -Infinity;
-            int beta = _Iteration > 1 ? Math.Min(Infinity, score + 50) : Infinity;
-            int value = Negamax(p, _Iteration, alpha, beta, 0, true);
-            if (!_Aborted && (value <= alpha || value >= beta)) value = Negamax(p, _Iteration, -Infinity, Infinity, 0, true);
-            if (_Aborted) break;
-            score = value;
-            if (_PvLength[0] > 0) best = _Pv[0, 0];
-            int length = Math.Max(1, _PvLength[0]); var pv = new Move[length];
-            pv[0] = best; for (int i = 1; i < length; i++) pv[i] = _Pv[0, i];
-            result = Snapshot(best, score, _Iteration, pv);
+            if (limits.MultiPv > 1)
+            {
+                if (!SearchMultiPvRoot(p, _Iteration, Math.Clamp(limits.MultiPv, 1, legal.Length), out PrincipalVariation[] lines)) break;
+                best = lines[0].Moves[0];
+                score = lines[0].Score;
+                result = Snapshot(best, score, _Iteration, lines[0].Moves) with { MultiPvLines = lines };
+            }
+            else
+            {
+                int alpha = _Iteration > 1 ? Math.Max(-Infinity, score - 50) : -Infinity;
+                int beta = _Iteration > 1 ? Math.Min(Infinity, score + 50) : Infinity;
+                int value = Negamax(p, _Iteration, alpha, beta, 0, true);
+                if (!_Aborted && (value <= alpha || value >= beta)) value = Negamax(p, _Iteration, -Infinity, Infinity, 0, true);
+                if (_Aborted) break;
+                score = value;
+                if (_PvLength[0] > 0) best = _Pv[0, 0];
+                int length = Math.Max(1, _PvLength[0]); var pv = new Move[length];
+                pv[0] = best; for (int i = 1; i < length; i++) pv[i] = _Pv[0, i];
+                result = Snapshot(best, score, _Iteration, pv);
+            }
             observer?.OnIteration(result);
-            if (_Ct.IsCancellationRequested || _Nodes >= limits.Nodes || _Watch.ElapsedMilliseconds >= _Budget) break;
+            if (_Ct.IsCancellationRequested || (nodeCounter?.Nodes ?? _Nodes) >= limits.Nodes || (_Clock?.IsTimeExpired ?? _Watch.ElapsedMilliseconds >= _Budget)) break;
             if (Math.Abs(score) >= Mate - MaxPly && _Iteration >= Mate - Math.Abs(score)) break;
         }
         _Watch.Stop();
-        return result with { Nodes = _Nodes, ElapsedMilliseconds = _Watch.ElapsedMilliseconds, Statistics = Stats() };
+        return result with { Nodes = _Nodes, ElapsedMilliseconds = _Clock?.ElapsedMilliseconds ?? _Watch.ElapsedMilliseconds, Statistics = Stats() };
     }
 
     private SearchStatistics Stats() => new(_Qnodes, _KillerUpdates, _HistoryUpdates, _TtFirst, table.Probes, table.Hits);
-    private SearchResult Snapshot(Move best, int score, int depth, Move[] pv) => new(best, score, depth, _Seldepth, _Nodes, _Watch.ElapsedMilliseconds, table.Hashfull, pv, Stats());
+    private SearchResult Snapshot(Move best, int score, int depth, Move[] pv) =>
+        new SearchResult(best, score, depth, _Seldepth, _Nodes, _Clock?.ElapsedMilliseconds ?? _Watch.ElapsedMilliseconds, table.Hashfull, pv, Stats())
+        {
+            MaterialUnits = _MaterialUnits
+        };
+
+    private bool SearchMultiPvRoot(Position p, int depth, int requestedCount, out PrincipalVariation[] lines)
+    {
+        Span<Move> moves = stackalloc Move[256];
+        int count = MoveGenerator.Generate(p, moves);
+        if (count == 0) { lines = Array.Empty<PrincipalVariation>(); return false; }
+        if (Draw(p))
+        {
+            int drawLineCount = Math.Min(requestedCount, count);
+            lines = new PrincipalVariation[drawLineCount];
+            for (int i = 0; i < drawLineCount; i++) lines[i] = new PrincipalVariation(0, [moves[i]]);
+            return true;
+        }
+
+        _RootPvMoves ??= new Move[256 * MaxPly];
+        _RootPvLengths ??= new int[256];
+        int lineCount = Math.Min(requestedCount, count);
+        ulong key = p.Key ^ (0x9E3779B97F4A7C15UL * (ulong)(p.HalfmoveClock + 1));
+        Move ttMove = table.TryGet(key, 0, out var entry) ? entry.BestMove : default;
+        Span<int> scores = stackalloc int[256];
+        Span<int> indexes = stackalloc int[256];
+        Span<int> rootScores = stackalloc int[256];
+        for (int i = 0; i < count; i++) { scores[i] = Order(p, moves[i], ttMove, 0); indexes[i] = i; }
+        for (int i = 0; i < count; i++)
+        {
+            int best = i;
+            for (int j = i + 1; j < count; j++) if (scores[j] > scores[best]) best = j;
+            (moves[i], moves[best]) = (moves[best], moves[i]);
+            (scores[i], scores[best]) = (scores[best], scores[i]);
+            (indexes[i], indexes[best]) = (indexes[best], indexes[i]);
+            Move move = moves[i];
+            if (i == 0 && move == ttMove) _TtFirst++;
+            p.MakeMove(move);
+            int value = -Negamax(p, depth - 1, -Infinity, Infinity, 1, true);
+            p.UnmakeMove();
+            if (_Aborted) { lines = Array.Empty<PrincipalVariation>(); return false; }
+            int rootIndex = indexes[i];
+            rootScores[rootIndex] = value;
+            int offset = rootIndex * MaxPly;
+            _RootPvMoves[offset] = move;
+            int childLength = Math.Min(_PvLength[1], MaxPly - 1);
+            for (int j = 0; j < childLength; j++) _RootPvMoves[offset + j + 1] = _Pv[1, j];
+            _RootPvLengths[rootIndex] = childLength + 1;
+        }
+
+        Span<int> order = stackalloc int[256];
+        for (int i = 0; i < count; i++) order[i] = i;
+        for (int i = 0; i < lineCount; i++)
+        {
+            int best = i;
+            for (int j = i + 1; j < count; j++) if (rootScores[order[j]] > rootScores[order[best]]) best = j;
+            (order[i], order[best]) = (order[best], order[i]);
+        }
+        lines = new PrincipalVariation[lineCount];
+        for (int i = 0; i < lineCount; i++)
+        {
+            int rootIndex = order[i], length = _RootPvLengths[rootIndex];
+            var pv = new Move[length];
+            Array.Copy(_RootPvMoves, rootIndex * MaxPly, pv, 0, length);
+            lines[i] = new PrincipalVariation(rootScores[rootIndex], pv);
+        }
+        return true;
+    }
+
+    private static int MaterialUnits(Position p) =>
+        BitOperations.PopCount(p.Pieces[1] | p.Pieces[7]) +
+        3 * (BitOperations.PopCount(p.Pieces[2] | p.Pieces[8]) + BitOperations.PopCount(p.Pieces[3] | p.Pieces[9])) +
+        5 * BitOperations.PopCount(p.Pieces[4] | p.Pieces[10]) +
+        9 * BitOperations.PopCount(p.Pieces[5] | p.Pieces[11]);
+
     private bool Stop()
     {
         // A complete depth-one result is guaranteed even if stop arrived before the worker started.
         if (_Iteration <= 1) return false;
-        if (_Nodes >= _Limits.Nodes || _Ct.IsCancellationRequested || _Watch.ElapsedMilliseconds >= _Budget) _Aborted = true;
+        if ((nodeCounter?.Nodes ?? _Nodes) >= _Limits.Nodes || _Ct.IsCancellationRequested || (_Clock?.IsTimeExpired ?? _Watch.ElapsedMilliseconds >= _Budget)) _Aborted = true;
         return _Aborted;
     }
     private bool Draw(Position p) => p.HalfmoveClock >= 100 || p.IsRepetition() || p.HasInsufficientMaterial();
@@ -68,7 +156,7 @@ internal sealed class Searcher(TranspositionTable table, IEvaluator evaluator)
         bool inCheck = Attacks.InCheck(p, p.SideToMove);
         if (ply >= MaxPly - 2) return evaluator.Evaluate(in p, ply);
         if (depth <= 0) return Quiescence(p, alpha, beta, ply);
-        _Nodes++;
+        _Nodes++; nodeCounter?.RecordNode();
         Span<Move> moves = stackalloc Move[256]; int count = MoveGenerator.Generate(p, moves);
         if (count == 0) return inCheck ? -Mate + ply : 0;
         if (Draw(p)) return 0;
@@ -144,7 +232,7 @@ internal sealed class Searcher(TranspositionTable table, IEvaluator evaluator)
     {
         _PvLength[ply] = 0;
         if (Stop()) return 0;
-        _Nodes++; _Qnodes++; _Seldepth = Math.Max(_Seldepth, ply);
+        _Nodes++; _Qnodes++; nodeCounter?.RecordNode(); _Seldepth = Math.Max(_Seldepth, ply);
         bool inCheck = Attacks.InCheck(p, p.SideToMove);
         Span<Move> all = stackalloc Move[256]; int allCount = MoveGenerator.Generate(p, all);
         if (allCount == 0) return inCheck ? -Mate + ply : 0;

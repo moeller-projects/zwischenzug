@@ -23,6 +23,60 @@ public sealed class SearchTests
     }
 
     [TestMethod]
+    public async Task MultiPvReturnsDistinctLegalRootLinesInScoreOrder()
+    {
+        var engine = new Engine();
+        SearchResult result = await engine.SearchAsync(new SearchLimits { Depth = 3, MultiPv = 4 });
+
+        Assert.HasCount(4, result.MultiPvLines);
+        Assert.HasCount(4, result.MultiPvLines.Select(line => line.Moves[0]).Distinct().ToArray());
+        Assert.AreEqual(result.BestMove, result.MultiPvLines[0].Moves[0]);
+        Assert.AreEqual(result.Score, result.MultiPvLines[0].Score);
+        foreach (PrincipalVariation line in result.MultiPvLines)
+        {
+            Assert.IsGreaterThanOrEqualTo(line.Score, result.MultiPvLines[0].Score);
+            var position = new Position();
+            foreach (Move move in line.Moves)
+            {
+                Move parsed = Move.Parse(position, move.ToString());
+                Assert.AreEqual(move, parsed);
+                position.MakeMove(parsed);
+            }
+        }
+    }
+    [TestMethod]
+    public async Task MultiPvDrawRootKeepsDistinctLegalAlternatives()
+    {
+        var engine = new Engine();
+        engine.SetPosition("4k3/8/8/8/8/8/8/R3K3 w - - 100 1");
+        SearchResult result = await engine.SearchAsync(new SearchLimits { Depth = 3, MultiPv = 3 });
+
+        Assert.AreEqual(0, result.Score);
+        Assert.HasCount(3, result.MultiPvLines);
+        Assert.HasCount(3, result.MultiPvLines.Select(line => line.Moves[0]).Distinct().ToArray());
+        foreach (PrincipalVariation line in result.MultiPvLines)
+        {
+            Assert.AreEqual(0, line.Score);
+            Assert.AreEqual(line.Moves[0], Move.Parse(Fen.Parse("4k3/8/8/8/8/8/8/R3K3 w - - 100 1"), line.Moves[0].ToString()));
+        }
+    }
+
+
+    [TestMethod]
+    public async Task PonderHitStartsTheConfiguredSearchClock()
+    {
+        var engine = new Engine();
+        Task<SearchResult> search = engine.SearchAsync(new SearchLimits { Ponder = true, MoveTime = 80 });
+        await Task.Delay(120);
+        Assert.IsFalse(search.IsCompleted);
+
+        engine.PonderHit();
+        SearchResult result = await search.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.IsGreaterThan(1, result.Depth);
+        Assert.AreEqual(result.BestMove, Move.Parse(new Position(), result.BestMove.ToString()));
+    }
+
+    [TestMethod]
     [DataRow("7k/6Q1/5K2/8/8/8/8/8 b - - 0 1", -30000)]
     [DataRow("7k/5K2/6Q1/8/8/8/8/8 b - - 0 1", 0)]
     public async Task TerminalRootsReturnNullMove(string fen, int score)

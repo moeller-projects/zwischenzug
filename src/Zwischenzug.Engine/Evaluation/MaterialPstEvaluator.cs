@@ -8,12 +8,24 @@ public interface IEvaluator
     int Evaluate(in Position pos, int ply);
 }
 
+public interface IWorkerEvaluatorFactory
+{
+    IEvaluator CreateWorkerEvaluator();
+}
+
 /// <summary>Material plus tapered middle/end-game piece-square evaluation.</summary>
-public sealed class MaterialPstEvaluator : IEvaluator
+public sealed class MaterialPstEvaluator : IEvaluator, IWorkerEvaluatorFactory
 {
     private readonly EvalParams _Parameters;
 
     public MaterialPstEvaluator(EvalParams? parameters = null) => _Parameters = parameters ?? new EvalParams();
+
+    IEvaluator IWorkerEvaluatorFactory.CreateWorkerEvaluator() =>
+        new MaterialPstEvaluator(new EvalParams(
+            _Parameters.MaterialValues,
+            _Parameters.PhaseWeights,
+            _Parameters.MiddleGamePst,
+            _Parameters.EndGamePst));
 
     public int Evaluate(in Position pos, int ply)
     {

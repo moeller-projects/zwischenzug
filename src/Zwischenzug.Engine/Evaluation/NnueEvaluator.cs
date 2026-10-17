@@ -9,7 +9,7 @@ namespace Zwischenzug.Engine;
 
 /// <summary>Chess768 evaluator with AVX2 and portable scalar feature-update backends.</summary>
 /// <remarks>Retains mutable per-ply caches; do not share one instance across concurrent searches.</remarks>
-public sealed class NnueEvaluator : IEvaluator
+public sealed class NnueEvaluator : IEvaluator, IWorkerEvaluatorFactory
 {
     private const int FeatureCount = 768;
     private const int HiddenSize = 128;
@@ -62,6 +62,17 @@ public sealed class NnueEvaluator : IEvaluator
         ReadWeights(payload, ref offset, _FeatureBias);
         ReadWeights(payload, ref offset, _OutputWeights);
         _OutputBias = BinaryPrimitives.ReadInt16LittleEndian(payload[offset..]);
+    }
+
+    IEvaluator IWorkerEvaluatorFactory.CreateWorkerEvaluator() => new NnueEvaluator(this);
+
+    private NnueEvaluator(NnueEvaluator source)
+    {
+        _UseAvx2 = source._UseAvx2;
+        source._FeatureWeights.CopyTo(_FeatureWeights, 0);
+        source._FeatureBias.CopyTo(_FeatureBias, 0);
+        source._OutputWeights.CopyTo(_OutputWeights, 0);
+        _OutputBias = source._OutputBias;
     }
 
     /// <summary>Wraps a pinned Bullet Chess768 quantised.bin in the versioned Zwischenzug model format.</summary>

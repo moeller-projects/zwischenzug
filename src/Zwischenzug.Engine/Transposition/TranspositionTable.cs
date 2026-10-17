@@ -31,13 +31,15 @@ public readonly struct TranspositionEntry
     public int Age { get; }
 }
 
-/// <summary>A fixed-size, single-owner transposition table.</summary>
+/// <summary>Fixed-size transposition table with stripe-locked bucket operations.</summary>
+/// <remarks>Call clear, resize, and generation operations only when all searchers are idle.</remarks>
 public sealed class TranspositionTable
 {
     private const int SlotsPerBucket = 4;
     private const int SlotBytes = 32;
     private const int MateValue = 30000;
     private const int MateThreshold = MateValue - 1000;
+    private const int LockCount = 1024;
 
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
     private struct Slot
@@ -57,6 +59,7 @@ public sealed class TranspositionTable
     private int _Used;
     private long _Probes;
     private long _Hits;
+    private readonly object[] _Locks = CreateLocks();
 
     public TranspositionTable(int megabytes = 16)
     {
@@ -64,15 +67,15 @@ public sealed class TranspositionTable
         (_Slots, _BucketMask) = Allocate(megabytes);
     }
 
-    public long Probes => _Probes;
-    public long Hits => _Hits;
+    public long Probes => Interlocked.Read(ref _Probes);
+    public long Hits => Interlocked.Read(ref _Hits);
 
     /// <summary>Approximate occupancy in per mille (0 through 1000).</summary>
     public int Hashfull
     {
         get
         {
-            int value = (int)(((long)_Used * 1000 + (_Slots.Length / 2)) / _Slots.Length);
+            int value = (int)(((long)Volatile.Read(ref _Used) * 1000 + (_Slots.Length / 2)) / _Slots.Length);
             return Math.Clamp(value, 0, 1000);
         }
     }
@@ -81,15 +84,15 @@ public sealed class TranspositionTable
     {
         ValidateMegabytes(megabytes);
         (_Slots, _BucketMask) = Allocate(megabytes);
-        _Used = 0;
-        _Probes = 0;
-        _Hits = 0;
+        Interlocked.Exchange(ref _Used, 0);
+        Interlocked.Exchange(ref _Probes, 0);
+        Interlocked.Exchange(ref _Hits, 0);
     }
 
     public void Clear()
     {
         Array.Clear(_Slots);
-        _Used = 0;
+        Interlocked.Exchange(ref _Used, 0);
     }
 
     public void NewGeneration()
@@ -104,71 +107,78 @@ public sealed class TranspositionTable
             _Generation++;
         }
 
-        _Probes = 0;
-        _Hits = 0;
+        Interlocked.Exchange(ref _Probes, 0);
+        Interlocked.Exchange(ref _Hits, 0);
     }
 
     public bool TryGet(ulong key, int ply, out TranspositionEntry entry)
     {
-        _Probes++;
-        int offset = (int)(key & (uint)_BucketMask) * SlotsPerBucket;
-        for (int i = 0; i < SlotsPerBucket; i++)
+        Interlocked.Increment(ref _Probes);
+        int bucket = (int)(key & (uint)_BucketMask);
+        lock (_Locks[bucket & (LockCount - 1)])
         {
-            ref Slot slot = ref _Slots[offset + i];
-            if (slot.Occupied != 0 && slot.Key == key)
+            int offset = bucket * SlotsPerBucket;
+            for (int i = 0; i < SlotsPerBucket; i++)
             {
-                _Hits++;
-                entry = new TranspositionEntry(slot.Key, slot.Depth, UnnormalizeMate(slot.Score, ply), slot.Bound, slot.BestMove, slot.Age);
-                return true;
+                ref Slot slot = ref _Slots[offset + i];
+                if (slot.Occupied != 0 && slot.Key == key)
+                {
+                    Interlocked.Increment(ref _Hits);
+                    entry = new TranspositionEntry(slot.Key, slot.Depth, UnnormalizeMate(slot.Score, ply), slot.Bound, slot.BestMove, slot.Age);
+                    return true;
+                }
             }
-        }
 
-        entry = default;
-        return false;
+            entry = default;
+            return false;
+        }
     }
 
     public void Store(ulong key, int depth, int score, Bound bound, Move bestMove, int ply)
     {
-        int offset = (int)(key & (uint)_BucketMask) * SlotsPerBucket;
-        int replacement = -1;
-        int weakestDepth = int.MaxValue;
-        int weakestAge = int.MaxValue;
-
-        for (int i = 0; i < SlotsPerBucket; i++)
+        int bucket = (int)(key & (uint)_BucketMask);
+        lock (_Locks[bucket & (LockCount - 1)])
         {
-            ref Slot slot = ref _Slots[offset + i];
-            if (slot.Occupied == 0)
+            int offset = bucket * SlotsPerBucket;
+            int replacement = -1;
+            int weakestDepth = int.MaxValue;
+            int weakestAge = int.MaxValue;
+
+            for (int i = 0; i < SlotsPerBucket; i++)
             {
-                replacement = i;
-                break;
+                ref Slot slot = ref _Slots[offset + i];
+                if (slot.Occupied == 0)
+                {
+                    replacement = i;
+                    break;
+                }
+
+                if (slot.Key == key)
+                {
+                    if (slot.Age == _Generation && slot.Depth > depth) return;
+                    replacement = i;
+                    break;
+                }
+
+                int ageRank = slot.Age == _Generation ? 1 : 0;
+                if (ageRank < weakestAge || (ageRank == weakestAge && slot.Depth < weakestDepth))
+                {
+                    weakestAge = ageRank;
+                    weakestDepth = slot.Depth;
+                    replacement = i;
+                }
             }
 
-            if (slot.Key == key)
-            {
-                if (slot.Age == _Generation && slot.Depth > depth) return;
-                replacement = i;
-                break;
-            }
-
-            int ageRank = slot.Age == _Generation ? 1 : 0;
-            if (ageRank < weakestAge || (ageRank == weakestAge && slot.Depth < weakestDepth))
-            {
-                weakestAge = ageRank;
-                weakestDepth = slot.Depth;
-                replacement = i;
-            }
-
+            ref Slot target = ref _Slots[offset + replacement];
+            if (target.Occupied == 0) Interlocked.Increment(ref _Used);
+            target.Key = key;
+            target.Depth = depth;
+            target.Score = NormalizeMate(score, ply);
+            target.Bound = bound;
+            target.BestMove = bestMove;
+            target.Age = _Generation;
+            target.Occupied = 1;
         }
-
-        ref Slot target = ref _Slots[offset + replacement];
-        if (target.Occupied == 0) _Used++;
-        target.Key = key;
-        target.Depth = depth;
-        target.Score = NormalizeMate(score, ply);
-        target.Bound = bound;
-        target.BestMove = bestMove;
-        target.Age = _Generation;
-        target.Occupied = 1;
     }
 
     private static int NormalizeMate(int score, int ply)
@@ -183,6 +193,13 @@ public sealed class TranspositionTable
         if (score > MateThreshold) return score - ply;
         if (score < -MateThreshold) return score + ply;
         return score;
+    }
+
+    private static object[] CreateLocks()
+    {
+        var locks = new object[LockCount];
+        for (int i = 0; i < locks.Length; i++) locks[i] = new object();
+        return locks;
     }
 
     private static (Slot[] Slots, int Mask) Allocate(int megabytes)
