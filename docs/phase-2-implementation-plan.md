@@ -55,7 +55,7 @@ Prefer a **Bullet `Chess768` first network** over the draft's HalfKA_hm architec
 
 Proposed frozen v1 contract, pending implementation:
 
-- Sparse input: Bullet Chess768 mapping, 768 features, at most 32 active pieces; same-perspective features use piece type and square; non-side-to-move perspective vertically mirrors square with `square ^ 56`.
+- Sparse input: Bullet Chess768 mapping with 768 features and at most 32 active pieces. Normalize black-to-move positions to side-to-move-as-white (`square ^= 56`, swap piece colors); then piece type is Pawn=0 through King=5. For each normalized piece, STM index is `384*color + 64*type + square`; NTM index is `384*(1-color) + 64*type + (square ^ 56)`. Bullet's data loader also negates score and flips result for black-to-move records.
 - Shared feature affine transform to 128 int16 accumulators for each perspective; SCReLU both accumulators, concatenate, one output.
 - Quantization/scaling: QA=255, QB=64, output scale=400; int64 scalar accumulation is the reference to avoid intermediate overflow. No architecture-specific backend until exact parity with scalar.
 - Model file: Bullet `quantised.bin` from a named `SavedFormat`, with fixed versioned header/length/endian/layout defined by this project before accepting any external model. Bullet's raw output has little-endian, column-major tensor weights and padding to 64 bytes; do not infer compatibility from file length alone.
