@@ -3,6 +3,7 @@ using System.Numerics;
 using Zwischenzug.Core;
 namespace Zwischenzug.Engine;
 
+/// <summary>Mutable worker-local search state; create one instance per concurrent worker.</summary>
 internal sealed class Searcher(TranspositionTable table, IEvaluator evaluator, SearchNodeCounter? nodeCounter = null)
 {
     private const int Mate = 30000, Infinity = 32000, MaxPly = 96;
@@ -20,6 +21,7 @@ internal sealed class Searcher(TranspositionTable table, IEvaluator evaluator, S
     private Move[]? _RootPvMoves;
     private int[]? _RootPvLengths;
 
+    /// <summary>Searches one root position, completing progressively deeper iterations and retaining the last complete answer.</summary>
     public SearchResult Search(Position p, SearchLimits limits, int overhead, ISearchObserver? observer, CancellationToken ct, SearchClock? clock = null)
     {
         _Limits = limits; _Ct = ct; _Clock = clock; _Budget = TimeManager.BudgetMilliseconds(limits, p.SideToMove, overhead);
@@ -63,13 +65,16 @@ internal sealed class Searcher(TranspositionTable table, IEvaluator evaluator, S
         return result with { Nodes = _Nodes, ElapsedMilliseconds = _Clock?.ElapsedMilliseconds ?? _Watch.ElapsedMilliseconds, Statistics = Stats() };
     }
 
+    /// <summary>Snapshots this worker's counters together with shared table probe statistics.</summary>
     private SearchStatistics Stats() => new(_Qnodes, _KillerUpdates, _HistoryUpdates, _TtFirst, table.Probes, table.Hits);
+    /// <summary>Builds a result value from the best completed iteration and current counters.</summary>
     private SearchResult Snapshot(Move best, int score, int depth, Move[] pv) =>
         new SearchResult(best, score, depth, _Seldepth, _Nodes, _Clock?.ElapsedMilliseconds ?? _Watch.ElapsedMilliseconds, table.Hashfull, pv, Stats())
         {
             MaterialUnits = _MaterialUnits
         };
 
+    /// <summary>Searches every legal root move so MultiPV scores are comparable and alternatives are distinct.</summary>
     private bool SearchMultiPvRoot(Position p, int depth, int requestedCount, out PrincipalVariation[] lines)
     {
         Span<Move> moves = stackalloc Move[256];
@@ -133,12 +138,14 @@ internal sealed class Searcher(TranspositionTable table, IEvaluator evaluator, S
         return true;
     }
 
+    /// <summary>Counts remaining non-pawn material in pawn units for the UCI WDL estimate model.</summary>
     private static int MaterialUnits(Position p) =>
         BitOperations.PopCount(p.Pieces[1] | p.Pieces[7]) +
         3 * (BitOperations.PopCount(p.Pieces[2] | p.Pieces[8]) + BitOperations.PopCount(p.Pieces[3] | p.Pieces[9])) +
         5 * BitOperations.PopCount(p.Pieces[4] | p.Pieces[10]) +
         9 * BitOperations.PopCount(p.Pieces[5] | p.Pieces[11]);
 
+    /// <summary>Checks shared node/time limits and cancellation, but preserves a complete first iteration.</summary>
     private bool Stop()
     {
         // A complete depth-one result is guaranteed even if stop arrived before the worker started.
@@ -146,8 +153,10 @@ internal sealed class Searcher(TranspositionTable table, IEvaluator evaluator, S
         if ((nodeCounter?.Nodes ?? _Nodes) >= _Limits.Nodes || _Ct.IsCancellationRequested || (_Clock?.IsTimeExpired ?? _Watch.ElapsedMilliseconds >= _Budget)) _Aborted = true;
         return _Aborted;
     }
+    /// <summary>Recognizes the draw rules modeled by this engine at a search node.</summary>
     private bool Draw(Position p) => p.HalfmoveClock >= 100 || p.IsRepetition() || p.HasInsufficientMaterial();
 
+    /// <summary>Searches legal moves with negamax, alpha-beta bounds, TT reuse, and selective pruning.</summary>
     private int Negamax(Position p, int depth, int alpha, int beta, int ply, bool allowNull)
     {
         _PvLength[ply] = 0;
@@ -162,7 +171,7 @@ internal sealed class Searcher(TranspositionTable table, IEvaluator evaluator, S
         if (Draw(p)) return 0;
         int originalAlpha = alpha; Move ttMove = default;
         bool nonPv = beta - alpha == 1;
-        // The fifty-move counter is not part of repetition identity, but is score context.
+        // The fifty-move clock changes whether a line can draw, so separate TT scores by that context even though repetitions ignore the clock.
         ulong tableKey = p.Key ^ (0x9E3779B97F4A7C15UL * (ulong)(p.HalfmoveClock + 1));
         bool hasEntry = table.TryGet(tableKey, ply, out var entry);
         if (hasEntry)
@@ -177,6 +186,7 @@ internal sealed class Searcher(TranspositionTable table, IEvaluator evaluator, S
         ulong nonPawns = p.Colors[p.SideToMove] & ~(p.Pieces[1 + p.SideToMove * 6] | p.Pieces[6 + p.SideToMove * 6]);
         if (allowNull && ply > 0 && depth >= 3 && !inCheck && beta < Mate - MaxPly && staticEval >= beta && BitOperations.PopCount(nonPawns) >= 2)
         {
+            // Passing is unsafe in checks, near mate, at shallow depth, or with too little non-pawn material; those guards reduce false cutoffs.
             p.MakeNullMove(); int value = -Negamax(p, depth - 1 - (2 + depth / 6), -beta, -beta + 1, ply + 1, false); p.UnmakeMove();
             if (_Aborted) return 0;
             if (value >= beta) return beta;
@@ -197,6 +207,7 @@ internal sealed class Searcher(TranspositionTable table, IEvaluator evaluator, S
             if (searched == 0) value = -Negamax(p, depth - 1, -beta, -alpha, ply + 1, true);
             else
             {
+                // Later quiet moves are reduced only after an earlier move has been searched; a score near alpha gets a full-depth re-search.
                 int reduction = nonPv && depth >= 3 && i >= 3 && quiet && !inCheck && !givesCheck ? 1 + (depth >= 6 && i >= 8 ? 1 : 0) : 0;
                 value = -Negamax(p, depth - 1 - reduction, -alpha - 1, -alpha, ply + 1, true);
                 if (reduction > 0 && value > alpha) value = -Negamax(p, depth - 1, -alpha - 1, -alpha, ply + 1, true);
@@ -228,6 +239,7 @@ internal sealed class Searcher(TranspositionTable table, IEvaluator evaluator, S
         return bestScore;
     }
 
+    /// <summary>Extends a leaf through captures, or through every legal evasion while the side is in check.</summary>
     private int Quiescence(Position p, int alpha, int beta, int ply)
     {
         _PvLength[ply] = 0;
@@ -249,6 +261,7 @@ internal sealed class Searcher(TranspositionTable table, IEvaluator evaluator, S
         for (int i = 0; i < count; i++)
         {
             Pick(moves, scores, i, count); Move move = moves[i];
+            // Keep promotions even when their exchange looks bad: the material change can make them tactically essential.
             if (!inCheck && move.Promotion == 0 && StaticExchange.Evaluate(p, move) < 0) continue;
             p.MakeMove(move); int value = -Quiescence(p, -beta, -alpha, ply + 1); p.UnmakeMove();
             if (_Aborted) return 0;
@@ -263,6 +276,7 @@ internal sealed class Searcher(TranspositionTable table, IEvaluator evaluator, S
         }
         return alpha;
     }
+    /// <summary>Assigns a heuristic score so promising moves are searched first and alpha-beta cuts more work.</summary>
     private int Order(Position p, Move move, Move ttMove, int ply)
     {
         if (move == ttMove && ttMove.Raw != 0) return 2000000;
@@ -277,6 +291,7 @@ internal sealed class Searcher(TranspositionTable table, IEvaluator evaluator, S
         if (_Killers[ply, 1] == move) return 800000;
         return _History[p.Board[move.From], move.To];
     }
+    /// <summary>Moves the highest-scoring remaining candidate into the next search slot without sorting the full list.</summary>
     private static void Pick(Span<Move> moves, Span<int> scores, int start, int count)
     {
         int best = start;

@@ -2,6 +2,8 @@
 
 A .NET 10 chess engine with configurable Lazy SMP, UCI, and Lichess Bot API adapters.
 
+New to chess, chess engines, or this codebase? Start with the [beginner's guide](docs/for-beginners.md), which explains the chess terms, the path from a position to a move, the project map, and the main configuration settings.
+
 The initial implementation followed the delivered M0–M5 plan. This Phase 2 continuation is tracked in [docs/phase-2-implementation-plan.md](docs/phase-2-implementation-plan.md); implementation evidence lives in [docs/implementation-ledger.md](docs/implementation-ledger.md).
 
 ## Command-line usage

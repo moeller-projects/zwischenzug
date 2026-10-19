@@ -6,6 +6,7 @@ public sealed class ChallengePolicy(IOptions<LichessOptions> options)
 {
     private readonly LichessOptions _Options = options.Value;
 
+    /// <summary>Returns the Lichess decline code for a rejected challenge, or null when policy allows it.</summary>
     public string? DeclineReason(Challenge challenge)
     {
         if (!string.Equals(challenge.Variant?.Key, "standard", StringComparison.OrdinalIgnoreCase))

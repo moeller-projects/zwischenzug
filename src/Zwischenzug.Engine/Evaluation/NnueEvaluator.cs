@@ -32,8 +32,10 @@ public sealed class NnueEvaluator : IEvaluator, IWorkerEvaluatorFactory
     private readonly bool[] _CacheValid = new bool[MaxSearchPly];
     private readonly bool _UseAvx2;
 
+    /// <summary>Loads and validates a versioned Chess768 model, selecting AVX2 when available.</summary>
     public NnueEvaluator(string modelPath) : this(modelPath, Avx2.IsSupported) { }
 
+    /// <summary>Loads a model with an explicitly selected backend; the test seam can force scalar evaluation.</summary>
     internal NnueEvaluator(string modelPath, bool useAvx2)
     {
         if (useAvx2 && !Avx2.IsSupported) throw new PlatformNotSupportedException("AVX2 is not supported on this processor.");
@@ -64,8 +66,10 @@ public sealed class NnueEvaluator : IEvaluator, IWorkerEvaluatorFactory
         _OutputBias = BinaryPrimitives.ReadInt16LittleEndian(payload[offset..]);
     }
 
+    /// <summary>Creates a worker-local evaluator that shares immutable weights but not mutable accumulators.</summary>
     IEvaluator IWorkerEvaluatorFactory.CreateWorkerEvaluator() => new NnueEvaluator(this);
 
+    /// <summary>Copies model weights while leaving all per-search cache arrays newly allocated.</summary>
     private NnueEvaluator(NnueEvaluator source)
     {
         _UseAvx2 = source._UseAvx2;
@@ -76,6 +80,7 @@ public sealed class NnueEvaluator : IEvaluator, IWorkerEvaluatorFactory
     }
 
     /// <summary>Wraps a pinned Bullet Chess768 quantised.bin in the versioned Zwischenzug model format.</summary>
+    /// <summary>Wraps a compatible raw Bullet Chess768 payload with this project's header and checksum.</summary>
     public static void PackBulletQuantizedNetwork(string bulletPath, string modelPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bulletPath);
@@ -100,6 +105,7 @@ public sealed class NnueEvaluator : IEvaluator, IWorkerEvaluatorFactory
         File.WriteAllBytes(modelPath, file);
     }
 
+    /// <summary>Evaluates from side-to-move perspective using clipped squared activations and output weights.</summary>
     public int Evaluate(in Position pos, int ply)
     {
         if ((uint)ply >= MaxSearchPly) throw new ArgumentOutOfRangeException(nameof(ply));
@@ -120,6 +126,7 @@ public sealed class NnueEvaluator : IEvaluator, IWorkerEvaluatorFactory
         return (int)output;
     }
 
+    /// <summary>Builds or incrementally updates the two perspective accumulators for one search ply.</summary>
     private void UpdateAccumulators(in Position pos, int ply)
     {
         int snapshotOffset = ply * 64;
@@ -155,6 +162,7 @@ public sealed class NnueEvaluator : IEvaluator, IWorkerEvaluatorFactory
         }
     }
 
+    /// <summary>Adds or subtracts a piece's feature row from side-to-move and opponent perspectives.</summary>
     private void UpdatePiece(int accumulatorOffset, int sideToMove, int square, int piece, int direction)
     {
         int color = piece > 6 ? Position.Black : Position.White;
@@ -167,6 +175,7 @@ public sealed class NnueEvaluator : IEvaluator, IWorkerEvaluatorFactory
         AddFeature(accumulatorOffset + HiddenSize, ntmFeature, direction);
     }
 
+    /// <summary>Adds one feature's weights using AVX2 or the scalar fallback with identical integer results.</summary>
     private void AddFeature(int accumulatorOffset, int feature, int direction)
     {
         int featureOffset = feature * HiddenSize;
@@ -188,12 +197,15 @@ public sealed class NnueEvaluator : IEvaluator, IWorkerEvaluatorFactory
             accumulator[i] += direction * scalarWeights[i];
     }
 
+    /// <summary>Reads signed little-endian 16-bit weights in the payload's fixed architecture order.</summary>
     private static void ReadWeights(ReadOnlySpan<byte> payload, ref int offset, Span<short> destination)
     {
         for (int i = 0; i < destination.Length; i++, offset += sizeof(short))
             destination[i] = BinaryPrimitives.ReadInt16LittleEndian(payload[offset..]);
     }
 
+    /// <summary>Reads one little-endian unsigned header field.</summary>
     private static uint ReadUInt32(ReadOnlySpan<byte> bytes, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(bytes[offset..]);
+    /// <summary>Writes one little-endian unsigned header field.</summary>
     private static void WriteUInt32(Span<byte> bytes, int offset, int value) => BinaryPrimitives.WriteUInt32LittleEndian(bytes[offset..], (uint)value);
 }

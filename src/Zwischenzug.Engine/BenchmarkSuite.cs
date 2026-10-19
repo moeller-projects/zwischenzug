@@ -41,6 +41,7 @@ public static class BenchmarkSuite
         "8/8/1Q3K2/3pN3/4kp2/8/8/8 w - - 0 1"
     ];
 
+    /// <summary>Searches every fixed suite position at one depth and aggregates reproducible work counters.</summary>
     public static async Task<BenchmarkResult> RunAsync(int depth = DefaultDepth)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(depth, 1);
@@ -63,4 +64,5 @@ public static class BenchmarkSuite
     }
 }
 
+/// <summary>Aggregate work, elapsed time, throughput, and table counters from one benchmark run.</summary>
 public sealed record BenchmarkResult(long TotalNodes, long ElapsedMilliseconds, long Nps, long TtProbes, long TtHits);

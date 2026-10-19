@@ -14,11 +14,16 @@ internal static class Zobrist
         for (int i = 0; i < 64; i++) Ep[i] = Next(ref x);
         Side = Next(ref x);
     }
+    /// <summary>Advances a fixed SplitMix64 sequence to create reproducible hash values.</summary>
     private static ulong Next(ref ulong x) { x += 0x9E3779B97F4A7C15UL; ulong z = x; z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9UL; z = (z ^ (z >> 27)) * 0x94D049BB133111EBUL; return z ^ (z >> 31); }
+    /// <summary>Gets the hash contribution for the current four castling-right bits.</summary>
     internal static ulong CastleValue(int rights) => Castle[rights];
+    /// <summary>Gets the hash contribution for a legally usable en-passant target square.</summary>
     internal static ulong EpValue(int square) => Ep[square];
+    /// <summary>Gets the hash contribution for a piece occupying a square.</summary>
     internal static ulong PieceValue(int piece, int square) => Piece[piece, square];
     internal static ulong SideValue => Side;
+    /// <summary>Recomputes a position key from board state; tests use this to check incremental updates.</summary>
     internal static ulong Compute(Position position)
     {
         ulong key = Castle[position.Castling];
@@ -27,6 +32,7 @@ internal static class Zobrist
         if (position.EnPassant >= 0 && HasEp(position)) key ^= Ep[position.EnPassant];
         return key;
     }
+    /// <summary>Checks that en passant is a legal identity feature, including king safety after removing both pawns.</summary>
     internal static bool HasEp(Position p)
     {
         int target = p.EnPassant;

@@ -1,3 +1,4 @@
+// The CLI is the composition root: adapters depend on Engine, but Engine never depends on adapters.
 using System.CommandLine;
 using System.Globalization;
 using Microsoft.Extensions.Configuration;
@@ -13,6 +14,7 @@ using Zwischenzug.Lichess;
 HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
 builder.Logging.ClearProviders();
 builder.Logging.AddSimpleConsole();
+// UCI owns stdout. Route every hosting log to stderr so a GUI never parses log text as protocol.
 builder.Services.Configure<Microsoft.Extensions.Logging.Console.ConsoleLoggerOptions>(options =>
     options.LogToStandardErrorThreshold = LogLevel.Trace);
 builder.Services.AddSingleton<Engine>(_ =>
@@ -33,6 +35,7 @@ builder.Services.AddSingleton<BotRunner>();
 
 using IHost host = builder.Build();
 
+// Keep each command's parsing and behavior at the composition boundary rather than in Core or Engine.
 var uci = new Command("uci", "Run the UCI protocol on stdin/stdout.");
 uci.SetAction(async (_, cancellationToken) => await host.Services.GetRequiredService<UciHost>().RunAsync(cancellationToken));
 
@@ -102,8 +105,10 @@ root.SetAction(async (_, cancellationToken) => await host.Services.GetRequiredSe
 
 return await root.Parse(args).InvokeAsync();
 
+// Read typed Lichess settings without reflection-based options binding.
 static LichessOptions ReadLichessOptions(IConfiguration configuration)
 {
+    // Fail early on malformed values so a typo cannot silently choose a different game policy.
     int Number(string key, int fallback) => configuration["Lichess:" + key] is not string value ? fallback :
         int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int number) ? number :
         throw new InvalidOperationException("Invalid integer Lichess setting: " + key);

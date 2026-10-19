@@ -6,6 +6,13 @@ namespace Zwischenzug.Uci;
 
 public static class UciCommandParser
 {
+    /// <summary>Converts one input line into a typed command; malformed or unknown lines return null.</summary>
+    /// <example>
+    /// <code>
+    /// UciCommand? command = UciCommandParser.Parse("go depth 8");
+    /// // The result is a UciCommand.Go with SearchLimits.Depth equal to 8.
+    /// </code>
+    /// </example>
     public static UciCommand? Parse(string? line)
     {
         if (string.IsNullOrWhiteSpace(line)) return null;
@@ -26,6 +33,7 @@ public static class UciCommandParser
         };
     }
 
+    /// <summary>Parses a setoption command whose name and value may contain spaces.</summary>
     private static UciCommand? ParseSetOption(string[] tokens)
     {
         if (tokens.Length < 3 || !tokens[1].Equals("name", StringComparison.OrdinalIgnoreCase)) return null;
@@ -36,6 +44,7 @@ public static class UciCommandParser
         return new UciCommand.SetOption(name, value);
     }
 
+    /// <summary>Parses startpos or FEN input and the optional list of moves to replay.</summary>
     private static UciCommand? ParsePosition(string[] tokens)
     {
         if (tokens.Length < 2) return null;
@@ -58,6 +67,7 @@ public static class UciCommandParser
         return new UciCommand.Position(fen, moves);
     }
 
+    /// <summary>Parses search limits while rejecting unknown limit names and invalid numbers.</summary>
     private static UciCommand? ParseGo(string[] tokens)
     {
         int depth = 64; long nodes = long.MaxValue; int? movetime = null, wtime = null, btime = null;
@@ -84,10 +94,13 @@ public static class UciCommandParser
         return new UciCommand.Go(new SearchLimits { Depth = (infinite || ponder) && !hasDepth ? int.MaxValue : depth, Nodes = nodes, MoveTime = movetime, WhiteTime = wtime, BlackTime = btime, WhiteIncrement = winc, BlackIncrement = binc, MovesToGo = movestogo, Infinite = infinite, Ponder = ponder });
     }
 
+    /// <summary>Parses a positive invariant-culture integer, used for depth and moves-to-go.</summary>
     private static bool TryPositive(string text, out int value)
         => int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out value) && value > 0;
+    /// <summary>Parses a positive invariant-culture long integer, used for node limits.</summary>
     private static bool TryPositive(string text, out long value)
         => long.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out value) && value > 0;
+    /// <summary>Parses a zero-or-positive invariant-culture integer, used for clocks and increments.</summary>
     private static bool TryNonNegative(string text, out int value)
         => int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out value) && value >= 0;
 }

@@ -5,11 +5,13 @@ namespace Zwischenzug.Engine;
 
 public interface IEvaluator
 {
+    /// <summary>Returns a score from the position's side-to-move perspective.</summary>
     int Evaluate(in Position pos, int ply);
 }
 
 public interface IWorkerEvaluatorFactory
 {
+    /// <summary>Creates independent mutable evaluator state for one parallel search worker.</summary>
     IEvaluator CreateWorkerEvaluator();
 }
 
@@ -18,6 +20,7 @@ public sealed class MaterialPstEvaluator : IEvaluator, IWorkerEvaluatorFactory
 {
     private readonly EvalParams _Parameters;
 
+    /// <summary>Creates a static evaluator using supplied weights or the built-in material and square tables.</summary>
     public MaterialPstEvaluator(EvalParams? parameters = null) => _Parameters = parameters ?? new EvalParams();
 
     IEvaluator IWorkerEvaluatorFactory.CreateWorkerEvaluator() =>
@@ -27,6 +30,7 @@ public sealed class MaterialPstEvaluator : IEvaluator, IWorkerEvaluatorFactory
             _Parameters.MiddleGamePst,
             _Parameters.EndGamePst));
 
+    /// <summary>Scores material and piece placement from the side-to-move perspective.</summary>
     public int Evaluate(in Position pos, int ply)
     {
         if (pos.HasInsufficientMaterial()) return 0;
