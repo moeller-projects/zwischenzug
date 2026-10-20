@@ -5,14 +5,18 @@ namespace Zwischenzug.Engine;
 
 public enum Bound : byte
 {
+    /// <summary>The stored score is exact for the searched depth.</summary>
     Exact,
+    /// <summary>The true score is at least the stored score.</summary>
     Lower,
+    /// <summary>The true score is at most the stored score.</summary>
     Upper
 }
 
 [StructLayout(LayoutKind.Sequential)]
 public readonly struct TranspositionEntry
 {
+    /// <summary>Creates an immutable snapshot of one matching table entry.</summary>
     public TranspositionEntry(ulong key, int depth, int score, Bound bound, Move bestMove, int age)
     {
         Key = key;
@@ -61,6 +65,7 @@ public sealed class TranspositionTable
     private long _Hits;
     private readonly object[] _Locks = CreateLocks();
 
+    /// <summary>Allocates a four-way table with the requested memory budget.</summary>
     public TranspositionTable(int megabytes = 16)
     {
         ValidateMegabytes(megabytes);
@@ -80,6 +85,7 @@ public sealed class TranspositionTable
         }
     }
 
+    /// <summary>Reallocates the table and resets occupancy and statistics; callers must ensure workers are idle.</summary>
     public void Resize(int megabytes)
     {
         ValidateMegabytes(megabytes);
@@ -89,12 +95,14 @@ public sealed class TranspositionTable
         Interlocked.Exchange(ref _Hits, 0);
     }
 
+    /// <summary>Invalidates every entry while retaining the allocated storage.</summary>
     public void Clear()
     {
         Array.Clear(_Slots);
         Interlocked.Exchange(ref _Used, 0);
     }
 
+    /// <summary>Marks a new root search so old entries are preferred for replacement.</summary>
     public void NewGeneration()
     {
         if (_Generation == int.MaxValue)
@@ -111,6 +119,7 @@ public sealed class TranspositionTable
         Interlocked.Exchange(ref _Hits, 0);
     }
 
+    /// <summary>Looks up a full position key and converts any stored mate score to this search ply.</summary>
     public bool TryGet(ulong key, int ply, out TranspositionEntry entry)
     {
         Interlocked.Increment(ref _Probes);
@@ -134,6 +143,7 @@ public sealed class TranspositionTable
         }
     }
 
+    /// <summary>Stores a bound and best move, replacing a weaker or older entry in the key's four-slot bucket.</summary>
     public void Store(ulong key, int depth, int score, Bound bound, Move bestMove, int ply)
     {
         int bucket = (int)(key & (uint)_BucketMask);
@@ -160,6 +170,7 @@ public sealed class TranspositionTable
                     break;
                 }
 
+                // Prefer replacing old-generation entries first, then the shallowest entry in that age group.
                 int ageRank = slot.Age == _Generation ? 1 : 0;
                 if (ageRank < weakestAge || (ageRank == weakestAge && slot.Depth < weakestDepth))
                 {
@@ -181,6 +192,7 @@ public sealed class TranspositionTable
         }
     }
 
+    /// <summary>Stores mate distance relative to the root so the same position can be reused at another ply.</summary>
     private static int NormalizeMate(int score, int ply)
     {
         if (score > MateThreshold) return score + ply;
@@ -188,6 +200,7 @@ public sealed class TranspositionTable
         return score;
     }
 
+    /// <summary>Restores mate distance from root-relative storage to the probing node's ply.</summary>
     private static int UnnormalizeMate(int score, int ply)
     {
         if (score > MateThreshold) return score - ply;
@@ -195,6 +208,7 @@ public sealed class TranspositionTable
         return score;
     }
 
+    /// <summary>Creates stripe locks; unrelated buckets may share a lock to keep synchronization storage small.</summary>
     private static object[] CreateLocks()
     {
         var locks = new object[LockCount];
@@ -202,6 +216,7 @@ public sealed class TranspositionTable
         return locks;
     }
 
+    /// <summary>Allocates a power-of-two number of four-entry buckets within the requested memory budget.</summary>
     private static (Slot[] Slots, int Mask) Allocate(int megabytes)
     {
         long capacity = (long)megabytes * 1024 * 1024 / (SlotBytes * SlotsPerBucket);
@@ -210,6 +225,7 @@ public sealed class TranspositionTable
         return (new Slot[buckets * SlotsPerBucket], buckets - 1);
     }
 
+    /// <summary>Enforces the public table-size range before allocation.</summary>
     private static void ValidateMegabytes(int megabytes)
     {
         if (megabytes is < 1 or > 1024) throw new ArgumentOutOfRangeException(nameof(megabytes), "Table size must be between 1 and 1024 megabytes.");

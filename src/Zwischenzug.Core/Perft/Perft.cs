@@ -2,6 +2,13 @@ namespace Zwischenzug.Core;
 
 public static class Perft
 {
+    /// <summary>Counts all legal move sequences of exactly the requested number of plies.</summary>
+    /// <remarks>Perft checks move generation and state restoration; it does not evaluate positions.</remarks>
+    /// <example>
+    /// <code>
+    /// long leaves = Perft.Count(new Position(), 3); // 8,902 legal move sequences.
+    /// </code>
+    /// </example>
     public static long Count(Position position, int depth)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(depth);
@@ -19,6 +26,7 @@ public static class Perft
         return nodes;
     }
 
+    /// <summary>Counts a perft tree separately for each legal root move, useful for locating a count mismatch.</summary>
     public static IReadOnlyList<(Move Move, long Nodes)> Divide(Position position, int depth)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(depth, 1);

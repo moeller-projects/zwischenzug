@@ -2,13 +2,20 @@ namespace Zwischenzug.Uci;
 
 public sealed class UciOptions
 {
+    /// <summary>Transposition-table size in megabytes.</summary>
     public int Hash { get; private set; } = 16;
+    /// <summary>Number of independent search workers.</summary>
     public int Threads { get; private set; } = 1;
+    /// <summary>Time reserved for the GUI to receive and play a move.</summary>
     public int MoveOverhead { get; private set; } = 10;
+    /// <summary>Number of root alternatives to report.</summary>
     public int MultiPv { get; private set; } = 1;
+    /// <summary>Whether info lines include empirical win/draw/loss estimates.</summary>
     public bool ShowWdl { get; private set; }
+    /// <summary>Whether the GUI has enabled ponder searches.</summary>
     public bool Ponder { get; private set; }
 
+    /// <summary>Validates and applies one advertised UCI option, returning false for unknown or invalid input.</summary>
     public bool TrySet(string name, string? value)
     {
         if (value is null) return false;

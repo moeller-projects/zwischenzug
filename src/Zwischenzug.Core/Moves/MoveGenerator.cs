@@ -3,11 +3,20 @@ namespace Zwischenzug.Core;
 
 public static class MoveGenerator
 {
+    /// <summary>Writes legal moves into caller storage and returns the number written.</summary>
+    /// <remarks>When capturesOnly is true, quiet promotions remain because promotion changes material.</remarks>
+    /// <example>
+    /// <code>
+    /// Span&lt;Move&gt; moves = stackalloc Move[256];
+    /// int count = MoveGenerator.Generate(new Position(), moves);
+    /// // The initial position has 20 legal moves; only moves[..count] are populated.
+    /// </code>
+    /// </example>
     public static int Generate(Position p, Span<Move> output, bool capturesOnly = false)
     {
         Span<Move> pseudo = stackalloc Move[256];
         int n = Pseudo(p, pseudo, capturesOnly), count = 0, side = p.SideToMove;
-        // Only king moves, en passant and pinned pieces need the expensive make/check filter.
+        // Most unpinned moves cannot uncover an attack on their own king. Keep the costly make/check filter for king moves, en passant, pinned pieces, and positions already in check.
         int king = p.KingSquare(side);
         bool inCheck = Attacks.InCheck(p, side);
         ulong pinned = Pinned(p, side, king);
@@ -24,6 +33,7 @@ public static class MoveGenerator
         return count;
     }
 
+    /// <summary>Finds friendly pieces whose removal would expose a rook, bishop, or queen ray to their king.</summary>
     private static ulong Pinned(Position p, int side, int king)
     {
         ulong result = 0;
@@ -51,6 +61,7 @@ public static class MoveGenerator
         return result;
     }
 
+    /// <summary>Generates geometrically valid moves before king-safety filtering.</summary>
     private static int Pseudo(Position p, Span<Move> output, bool capturesOnly)
     {
         int count = 0, side = p.SideToMove, offset = side * 6;

@@ -5,6 +5,10 @@ using ChessEngine = Zwischenzug.Engine.Engine;
 namespace Zwischenzug.Uci;
 
 /// <summary>Serial command mutations, concurrent search, and atomic protocol output.</summary>
+/// <param name="input">UCI command stream, normally standard input.</param>
+/// <param name="output">Protocol-only output stream, normally standard output.</param>
+/// <param name="engine">Engine whose state this protocol loop owns.</param>
+/// <param name="logger">Diagnostics sink configured to write to standard error.</param>
 public sealed class UciHost(TextReader input, TextWriter output, ChessEngine engine, ILogger<UciHost> logger) : ISearchObserver
 {
     private readonly object _OutputGate = new();
@@ -14,6 +18,8 @@ public sealed class UciHost(TextReader input, TextWriter output, ChessEngine eng
     private TaskCompletionSource? _PonderRelease;
     private CancellationTokenSource? _LifetimeCancellation;
 
+    /// <summary>Reads UCI commands until input closes, quit arrives, or a fatal search failure occurs.</summary>
+    /// <remarks>All protocol output uses the supplied writer; host diagnostics use the logger.</remarks>
     public async Task RunAsync(CancellationToken ct = default)
     {
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -68,6 +74,7 @@ public sealed class UciHost(TextReader input, TextWriter output, ChessEngine eng
         }
     }
 
+    /// <summary>Applies a recognized option and stops search first when that option changes active engine state.</summary>
     private async Task SetOptionAsync(UciCommand.SetOption option)
     {
         if (!_Options.TrySet(option.Name, option.Value)) return;
@@ -85,6 +92,7 @@ public sealed class UciHost(TextReader input, TextWriter output, ChessEngine eng
         }
     }
 
+    /// <summary>Runs a search, handles ponder/infinite release rules, and writes its final bestmove.</summary>
     private async Task SearchAndReportAsync(SearchLimits limits, CancellationToken ct)
     {
         try
@@ -113,6 +121,7 @@ public sealed class UciHost(TextReader input, TextWriter output, ChessEngine eng
         }
     }
 
+    /// <summary>Cancels and awaits the current search before allowing any state mutation.</summary>
     private async Task StopAsync()
     {
         if (_SearchTask is null) return;
@@ -124,6 +133,7 @@ public sealed class UciHost(TextReader input, TextWriter output, ChessEngine eng
         }
     }
 
+    /// <summary>Formats a completed iteration, emitting one indexed line for each requested MultiPV candidate.</summary>
     public void OnIteration(SearchResult result)
     {
         if (result.MultiPvLines.Length > 1)
@@ -138,6 +148,7 @@ public sealed class UciHost(TextReader input, TextWriter output, ChessEngine eng
         Write(UciResponseFormatter.Info(result, _Options.ShowWdl));
     }
 
+    /// <summary>Writes and flushes one protocol line atomically so worker reports cannot interleave.</summary>
     private void Write(string line)
     {
         lock (_OutputGate) { output.WriteLine(line); output.Flush(); }

@@ -8,6 +8,8 @@ namespace Zwischenzug.Lichess;
 
 public sealed class GameSession(ILichessClient client, IOptions<LichessOptions> options, ILogger<GameSession> logger)
 {
+    /// <summary>Consumes authoritative updates for one game and submits a move only for the bot's turn.</summary>
+    /// <remarks>Every new position is rebuilt from the initial FEN and complete server move prefix.</remarks>
     public async Task RunAsync(string gameId, CancellationToken ct = default)
     {
         var settings = options.Value;
@@ -43,7 +45,7 @@ public sealed class GameSession(ILichessClient client, IOptions<LichessOptions> 
                         if (previousMoves is not null && moves != previousMoves && !moves.StartsWith(previousMoves.Length == 0 ? "" : previousMoves + " ", StringComparison.Ordinal))
                             throw new InvalidOperationException("Game move history conflicts with the previous authoritative state.");
                         bool started = state.Status == "started";
-                        // Clock-only updates and reconnect snapshots cannot duplicate a submitted move.
+                        // Clock-only updates and reconnect snapshots must not start a second search for this same turn.
                         if (started && moves == previousMoves && (active is { IsCompleted: false } || Volatile.Read(ref submittedFor) == moves)) continue;
                         Interlocked.Increment(ref version);
                         await StopSearchAsync().ConfigureAwait(false);
@@ -82,8 +84,7 @@ public sealed class GameSession(ILichessClient client, IOptions<LichessOptions> 
                             }
                             catch (HttpRequestException exception) when (!searchToken.IsCancellationRequested)
                             {
-                                // The server may have accepted the move. Never resend blindly:
-                                // reopen the stream and reconcile its authoritative gameFull first.
+                                // A transport failure does not prove rejection. Reopen the stream and compare its authoritative move list before considering another move.
                                 if (exception.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden)
                                 { streamCancellation.Cancel(); throw; }
                                 logger.LogWarning("Move delivery needs reconciliation for {GameId}, HTTP {Status}", gameId, exception.StatusCode);
@@ -116,6 +117,7 @@ public sealed class GameSession(ILichessClient client, IOptions<LichessOptions> 
         }
     }
 
+    /// <summary>Maps the configured account to White or Black, returning -1 when the snapshot does not identify it.</summary>
     private static int Color(GameEvent game, string username)
     {
         if (string.Equals(game.White?.Id, username, StringComparison.OrdinalIgnoreCase) || string.Equals(game.White?.Name, username, StringComparison.OrdinalIgnoreCase)) return 0;

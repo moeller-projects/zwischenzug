@@ -35,12 +35,16 @@ public sealed class Position
         public bool Null;
     }
 
+    /// <summary>Creates the standard chess starting position.</summary>
     public Position() => Fen.Initialize(this,Fen.StartPosition);
 
+    /// <summary>Creates an empty position for trusted parsers and internal cloning.</summary>
     internal Position(bool empty) { }
 
+    /// <summary>Starts repetition history with the position's already-computed key.</summary>
     internal void InitializeHistory() { Ply = 0; _HistoryLength = 1; _History[0] = Key; _RealHistory[0] = true; }
 
+    /// <summary>Copies board and real-game history so a search worker can mutate its own position.</summary>
     internal Position CloneForSearch()
     {
         var clone = new Position(true)
@@ -64,6 +68,7 @@ public sealed class Position
         return clone;
     }
 
+    /// <summary>Places a piece and updates every derived board representation and the position key.</summary>
     internal void PutPiece(int square, int piece)
     {
         if ((uint)square >= 64 || (uint)piece >= 13) throw new ArgumentOutOfRangeException();
@@ -74,14 +79,17 @@ public sealed class Position
         Key ^= Zobrist.PieceValue(piece, square);
         int color = piece > 6 ? Black : White; Colors[color] |= bit; Occupied |= bit;
     }
+    /// <summary>Removes a piece from the mailbox, bitboards, occupancy, and incremental key.</summary>
     private void RemovePiece(int square, int piece)
     {
         ulong bit = 1UL << square; Board[square] = 0; Pieces[piece] &= ~bit;
         Key ^= Zobrist.PieceValue(piece, square);
         Colors[piece > 6 ? Black : White] &= ~bit; Occupied &= ~bit;
     }
+    /// <summary>Returns the piece kind (pawn through king), ignoring its color offset.</summary>
     private static int TypeOf(int piece) => piece > 6 ? piece - 6 : piece;
 
+    /// <summary>Finds a side's king square, or -1 when a malformed internal position has no king.</summary>
     public int KingSquare(int color)
     {
         ulong kings = Pieces[color == White ? 6 : 12];
@@ -89,6 +97,16 @@ public sealed class Position
         return BitOperations.TrailingZeroCount(kings);
     }
 
+    /// <summary>Applies a move and records enough state for exact undo.</summary>
+    /// <remarks>Ordinary callers pass generated legal moves; move generation also uses this temporarily on pseudo-legal candidates. All board views, rights, clocks, key, and history must stay synchronized.</remarks>
+    /// <example>
+    /// <code>
+    /// Position board = new Position();
+    /// Move move = Move.Parse(board, "e2e4");
+    /// board.MakeMove(move);
+    /// board.UnmakeMove(); // Restores the starting position and its history.
+    /// </code>
+    /// </example>
     public void MakeMove(Move move)
     {
         if ((uint)Ply >= MaxPly) throw new InvalidOperationException("Position ply limit exceeded.");
@@ -124,7 +142,9 @@ public sealed class Position
         _Undo[Ply - 1] = u; PushHistory(Key, true);
     }
 
+    /// <summary>Moves one piece while maintaining board representations and the incremental key.</summary>
     private void MovePiece(int from, int to, int piece) { RemovePiece(from, piece); PutPiece(to, piece); }
+    /// <summary>Clears castling rights when a king or home rook moves or the home rook square is touched.</summary>
     private void UpdateCastling(int from, int to, int moving)
     {
         if (TypeOf(moving) == 6) Castling &= SideToMove == White ? ~3 : ~12;
@@ -132,6 +152,7 @@ public sealed class Position
         if (from == 56 || to == 56) Castling &= ~8; if (from == 63 || to == 63) Castling &= ~4;
     }
 
+    /// <summary>Restores the exact state saved by the most recent real or null move.</summary>
     public void UnmakeMove()
     {
         if (Ply == 0) throw new InvalidOperationException("No move to unmake.");
@@ -143,6 +164,7 @@ public sealed class Position
         SideToMove = u.Side; Castling = u.Castling; EnPassant = u.EnPassant; HalfmoveClock = u.Halfmove; FullmoveNumber = u.Fullmove; Key = u.Key; Ply--; PopHistory();
     }
 
+    /// <summary>Passes the turn for search pruning without adding a real game move to repetition history.</summary>
     public void MakeNullMove()
     {
         if ((uint)Ply >= MaxPly) throw new InvalidOperationException("Position ply limit exceeded.");
@@ -150,6 +172,7 @@ public sealed class Position
         if (EnPassant >= 0 && Zobrist.HasEp(this)) Key ^= Zobrist.EpValue(EnPassant);
         EnPassant = -1; SideToMove ^= 1; Key ^= Zobrist.SideValue; Ply++; PushHistory(Key, false);
     }
+    /// <summary>Returns true when the current key has occurred at least <paramref name="count"/> times in real history.</summary>
     public bool IsRepetition(int count = 3)
     {
         if (count < 2) throw new ArgumentOutOfRangeException(nameof(count));
@@ -158,8 +181,11 @@ public sealed class Position
         for (int i = _HistoryLength - 2; i >= 0 && _RealHistory[i]; i--) if (_History[i] == Key && ++found >= count) return true;
         return false;
     }
+    /// <summary>Adds a key and marks whether it came from an actual game move or a search-only null move.</summary>
     private void PushHistory(ulong key, bool real) { _History[_HistoryLength++] = key; _RealHistory[_HistoryLength - 1] = real; }
+    /// <summary>Removes the latest history entry when a move is undone.</summary>
     private void PopHistory() { if (_HistoryLength > 1) _HistoryLength--; }
+    /// <summary>Checks the standard insufficient-material cases that cannot produce checkmate.</summary>
     public bool HasInsufficientMaterial()
     {
         if ((Pieces[1] | Pieces[7] | Pieces[4] | Pieces[10] | Pieces[5] | Pieces[11]) != 0) return false;

@@ -5,6 +5,13 @@ using System.Globalization;
 public static class Fen
 {
     public const string StartPosition = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    /// <summary>Parses four-to-six FEN fields into a new position with fresh repetition history.</summary>
+    /// <example>
+    /// <code>
+    /// Position board = Fen.Parse(Fen.StartPosition);
+    /// int whiteToMove = board.SideToMove; // White is 0.
+    /// </code>
+    /// </example>
     public static Position Parse(string fen)
     {
         var position = new Position(true);
@@ -12,7 +19,7 @@ public static class Fen
         return position;
     }
 
-    // Called only for a freshly allocated position, never over an existing game history.
+    /// <summary>Loads FEN fields into a fresh position; replacing a live position would discard its history.</summary>
     internal static void Initialize(Position p,string fen)
     {
         if (string.IsNullOrWhiteSpace(fen)) throw new FormatException("FEN is empty.");
@@ -39,6 +46,7 @@ public static class Fen
         p.Key = Zobrist.Compute(p);
         p.InitializeHistory();
     }
+    /// <summary>Serializes board state and move counters into the six-field FEN form.</summary>
     public static string Format(Position p)
     {
         Span<char> board = stackalloc char[80]; int n = 0;
@@ -47,10 +55,16 @@ public static class Fen
         string ep = p.EnPassant < 0 ? "-" : $"{(char)('a' + (p.EnPassant & 7))}{1 + p.EnPassant / 8}";
         return new string(board[..n]) + $" {(p.SideToMove == Position.White ? "w" : "b")} {rights} {ep} {p.HalfmoveClock.ToString(CultureInfo.InvariantCulture)} {p.FullmoveNumber.ToString(CultureInfo.InvariantCulture)}";
     }
+    /// <summary>Counts one piece code on the board to validate king counts.</summary>
     private static int Count(Position p, int piece) { int n = 0; for (int i = 0; i < 64; i++) if (p.Board[i] == piece) n++; return n; }
+    /// <summary>Converts algebraic square text such as e4 into the engine's 0-to-63 index.</summary>
     private static int ParseSquare(string s) { if (s.Length != 2 || s[0] is < 'a' or > 'h' || s[1] is < '1' or > '8') throw new FormatException("Invalid square."); return (s[1] - '1') * 8 + s[0] - 'a'; }
+    /// <summary>Parses a non-negative FEN clock using invariant decimal digits.</summary>
     private static int ParseNonNegative(string s, string name) => int.TryParse(s, NumberStyles.None, CultureInfo.InvariantCulture, out int n) && n >= 0 ? n : throw new FormatException($"Invalid {name}.");
+    /// <summary>Parses a positive FEN move number using invariant decimal digits.</summary>
     private static int ParsePositive(string s, string name) => int.TryParse(s, NumberStyles.None, CultureInfo.InvariantCulture, out int n) && n > 0 ? n : throw new FormatException($"Invalid {name}.");
+    /// <summary>Maps a FEN letter to the internal piece code, returning zero for unknown input.</summary>
     private static int Piece(char c) => c switch { 'P' => 1, 'N' => 2, 'B' => 3, 'R' => 4, 'Q' => 5, 'K' => 6, 'p' => 7, 'n' => 8, 'b' => 9, 'r' => 10, 'q' => 11, 'k' => 12, _ => 0 };
+    /// <summary>Maps an internal piece code back to its case-sensitive FEN letter.</summary>
     private static char PieceChar(int p) => p switch { 1 => 'P', 2 => 'N', 3 => 'B', 4 => 'R', 5 => 'Q', 6 => 'K', 7 => 'p', 8 => 'n', 9 => 'b', 10 => 'r', 11 => 'q', 12 => 'k', _ => '?' };
 }

@@ -6,6 +6,7 @@ namespace Zwischenzug.Uci;
 
 public static class UciResponseFormatter
 {
+    /// <summary>Formats one UCI info line, including optional MultiPV index and empirical WDL fields.</summary>
     public static string Info(SearchResult result, bool showWdl = false, int? multiPv = null)
     {
         long nps = result.ElapsedMilliseconds > 0 ? result.Nodes * 1000 / result.ElapsedMilliseconds : 0;
@@ -24,8 +25,10 @@ public static class UciResponseFormatter
             $"info depth {result.Depth} seldepth {result.SelectiveDepth}{index} score {score}{wdl} nodes {result.Nodes} nps {nps} time {result.ElapsedMilliseconds} hashfull {result.Hashfull}{pv}");
     }
 
+    /// <summary>Formats the protocol's final move line.</summary>
     public static string BestMove(Move move) => $"bestmove {move}";
 
+    /// <summary>Returns engine identity and option declarations for the UCI handshake.</summary>
     public static string[] Handshake() =>
     [
         "id name Zwischenzug",
@@ -39,6 +42,7 @@ public static class UciResponseFormatter
         "uciok"
     ];
 
+    /// <summary>Applies the documented empirical score/material model and returns per-mille estimates.</summary>
     internal static (int Win, int Draw, int Loss) EstimateWdl(int score, int material)
     {
         double m = Math.Clamp(material, 17, 78) / 58.0;
@@ -50,6 +54,7 @@ public static class UciResponseFormatter
         return (win, 1000 - win - loss, loss);
     }
 
+    /// <summary>Converts the search's signed ply score into UCI's signed moves-to-mate field.</summary>
     private static int MateDistance(int score)
     {
         int distance = (30000 - Math.Abs(score) + 1) / 2;

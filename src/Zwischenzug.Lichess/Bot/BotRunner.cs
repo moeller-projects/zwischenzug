@@ -9,6 +9,7 @@ public sealed class BotRunner(ILichessClient client, IOptions<LichessOptions> op
     private readonly Dictionary<string, GameSlot> _Games = new(StringComparer.Ordinal);
     private readonly HashSet<string> _Pending = new(StringComparer.Ordinal);
     private readonly ChallengePolicy _Policy = new(options);
+    /// <summary>Tracks the cancellation lifetime and completion task for one exact game ID.</summary>
     private sealed class GameSlot(CancellationTokenSource cancellation)
     {
         public CancellationTokenSource Cancellation { get; } = cancellation;
@@ -17,6 +18,7 @@ public sealed class BotRunner(ILichessClient client, IOptions<LichessOptions> op
     private readonly List<Task> _ChallengeTasks = [];
     private Exception? _FatalFailure;
 
+    /// <summary>Consumes account events and manages independently cancellable challenge and game tasks.</summary>
     public async Task RunAsync(CancellationToken ct = default)
     {
         using var runCancellation = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -57,6 +59,7 @@ public sealed class BotRunner(ILichessClient client, IOptions<LichessOptions> op
         }
     }
 
+    /// <summary>Reserves game capacity synchronously, then handles the network response without blocking event intake.</summary>
     private void DispatchChallenge(Challenge challenge,CancellationToken ct,CancellationTokenSource abort)
     {
         string? reason = _Policy.DeclineReason(challenge);
@@ -83,6 +86,7 @@ public sealed class BotRunner(ILichessClient client, IOptions<LichessOptions> op
         }
     }
 
+    /// <summary>Accepts or declines one challenge and resolves its reservation only when the outcome is known.</summary>
     private async Task ChallengeAsync(Challenge challenge,string? reason,CancellationToken ct)
     {
         try
@@ -101,6 +105,7 @@ public sealed class BotRunner(ILichessClient client, IOptions<LichessOptions> op
         if (reason is not null) lock (_Gate) _Pending.Remove(challenge.Id);
     }
 
+    /// <summary>Starts one session per exact game identity if configured capacity remains.</summary>
     private void StartGame(string id, CancellationToken ct)
     {
         lock (_Gate)
@@ -116,6 +121,7 @@ public sealed class BotRunner(ILichessClient client, IOptions<LichessOptions> op
             slot.Task = RunGameAsync(id, slot);
         }
     }
+    /// <summary>Runs and observes one game session, then releases its game slot and cancellation source.</summary>
     private async Task RunGameAsync(string id, GameSlot slot)
     {
         try { await new GameSession(client, options, loggerFactory.CreateLogger<GameSession>()).RunAsync(id, slot.Cancellation.Token).ConfigureAwait(false); }

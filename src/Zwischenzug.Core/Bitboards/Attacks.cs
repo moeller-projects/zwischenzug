@@ -19,6 +19,7 @@ public static class Attacks
 
     static Attacks()
     {
+        // Sliding tables enumerate only blockers that can change a ray before its edge; this keeps lookup compact.
         int bishopSize = 0;
         int rookSize = 0;
         for (int square = 0; square < 64; square++)
@@ -44,13 +45,20 @@ public static class Attacks
         }
     }
 
+    /// <summary>Returns the precomputed squares attacked by a knight on the given square.</summary>
     public static ulong Knight(int square) => KnightAttacks[square];
+    /// <summary>Returns the precomputed adjacent squares attacked by a king.</summary>
     public static ulong King(int square) => KingAttacks[square];
+    /// <summary>Returns pawn attacks for color 0 (White) or 1 (Black); color does not mean side-to-move.</summary>
     public static ulong Pawn(int square, int color) => color == 0 ? WhitePawnAttacks[square] : BlackPawnAttacks[square];
+    /// <summary>Returns bishop rays, stopping on the first occupied square in each diagonal.</summary>
     public static ulong Bishop(int square, ulong occupied) => BishopTable[BishopOffsets[square] + Index(occupied & BishopMasks[square], BishopMasks[square])];
+    /// <summary>Returns rook rays, stopping on the first occupied square in each rank or file.</summary>
     public static ulong Rook(int square, ulong occupied) => RookTable[RookOffsets[square] + Index(occupied & RookMasks[square], RookMasks[square])];
+    /// <summary>Combines the diagonal and rank/file rays used by a queen.</summary>
     public static ulong Queen(int square, ulong occupied) => Bishop(square, occupied) | Rook(square, occupied);
 
+    /// <summary>Tests whether a square is attacked by a color, regardless of whether that attack is a legal move.</summary>
     public static bool IsSquareAttacked(Position position, int square, int byColor)
     {
         int offset = byColor * 6;
@@ -61,6 +69,7 @@ public static class Attacks
             || (Rook(square, position.Occupied) & (position.Pieces[4 + offset] | position.Pieces[5 + offset])) != 0;
     }
 
+    /// <summary>Tests whether the selected side's king is attacked.</summary>
     public static bool InCheck(Position position, int color) =>
         IsSquareAttacked(position, position.KingSquare(color), color ^ 1);
 
@@ -76,6 +85,7 @@ public static class Attacks
     private static readonly (int dr, int df)[] BishopDirections = { (1, 1), (1, -1), (-1, 1), (-1, -1) };
     private static readonly (int dr, int df)[] RookDirections = { (1, 0), (-1, 0), (0, 1), (0, -1) };
 
+    /// <summary>Builds an attack mask for a piece with fixed rank/file offsets.</summary>
     private static ulong Leaper(int square, (int dr, int df)[] deltas)
     {
         int rank = square >> 3;
@@ -91,6 +101,7 @@ public static class Attacks
         return attacks;
     }
 
+    /// <summary>Builds one pawn's diagonal attack mask, respecting the board edge.</summary>
     private static ulong PawnAttacks(int square, int color)
     {
         int rank = square >> 3;
@@ -103,7 +114,7 @@ public static class Attacks
         return attacks;
     }
 
-    // Edge squares cannot be occupied beyond the board and need not be indexed.
+    /// <summary>Builds the relevant occupancy mask; edge blockers need not be indexed because rays end there.</summary>
     private static ulong SlidingMask(int square, (int dr, int df)[] directions)
     {
         int rank = square >> 3;
@@ -124,6 +135,7 @@ public static class Attacks
         return mask;
     }
 
+    /// <summary>Precomputes sliding attacks for every blocker subset of one square's relevant mask.</summary>
     private static void FillTable(int square, ulong mask, int offset, ulong[] table, (int dr, int df)[] directions)
     {
         int count = BitOperations.PopCount(mask);
@@ -135,6 +147,7 @@ public static class Attacks
         }
     }
 
+    /// <summary>Expands a compact integer into board bits selected by a mask.</summary>
     private static ulong ExpandSubset(ulong mask, int subset)
     {
         ulong result = 0;
@@ -148,6 +161,7 @@ public static class Attacks
         return result;
     }
 
+    /// <summary>Walks each sliding direction and includes the first blocker square before stopping.</summary>
     private static ulong SlidingAttacks(int square, ulong occupied, (int dr, int df)[] directions)
     {
         int rank = square >> 3;
@@ -169,6 +183,7 @@ public static class Attacks
         return attacks;
     }
 
+    /// <summary>Maps masked occupancy to the attack table index, using BMI2 when available.</summary>
     private static int Index(ulong occupancy, ulong mask)
     {
         if (Bmi2.X64.IsSupported)

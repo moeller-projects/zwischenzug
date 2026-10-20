@@ -12,6 +12,7 @@ public static class StaticExchange
 {
     private static ReadOnlySpan<int> Values => [0, 100, 320, 330, 500, 900, 20_000];
 
+    /// <summary>Estimates the net material gain of a legal capture sequence on the destination square.</summary>
     public static int Evaluate(Position position, Move move)
     {
         int from = move.From, to = move.To, side = position.SideToMove;
@@ -50,6 +51,7 @@ public static class StaticExchange
         return gains[0];
 
     }
+    /// <summary>Finds the cheapest legal attacker; testing king safety skips pinned pieces and unsafe king captures.</summary>
     private static int LeastValuableAttacker(Position p, ulong occupancy, int target, int side, out int type)
     {
         int offset = side * 6;
@@ -74,6 +76,7 @@ public static class StaticExchange
         type = 0; return -1;
     }
 
+    /// <summary>Tests attacks under a temporary occupancy where the exchanging occupant is not a defending blocker.</summary>
     private static bool Attacked(Position p, int square, int side, ulong occupied, int exchangeSquare)
     {
         int offset = side * 6;
@@ -85,5 +88,6 @@ public static class StaticExchange
             || (Attacks.Rook(square, occupied) & (p.Pieces[4 + offset] | p.Pieces[5 + offset]) & active) != 0;
     }
 
+    /// <summary>Returns the fixed pawn-unit value for a piece code, treating an empty square as zero.</summary>
     private static int Value(int piece) => piece == 0 ? 0 : Values[piece > 6 ? piece - 6 : piece];
 }
